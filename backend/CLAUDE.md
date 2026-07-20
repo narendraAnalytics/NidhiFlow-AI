@@ -26,6 +26,12 @@ app/agents/    stays empty until Phase 2 — do not add logic yet
 app/utils/     shared helpers
 ```
 
+## Local Cloud SQL access
+
+Local dev DB access goes through the Cloud SQL Auth Proxy on `127.0.0.1:5432` — nothing connects directly. Run `cloud-sql-proxy.exe <instance-connection-name> --port=5432 --gcloud-auth` before any DB-touching code (incl. `/health/db`) will work. `--gcloud-auth` is needed unless Application Default Credentials are set up.
+
+Don't echo raw exception text from DB/infra errors into HTTP responses (can leak DSN/credentials) — log server-side via `logging`, return a generic client-facing message.
+
 ## Phase discipline
 
 We are in Phase 1 (foundation). No business logic, no LangGraph/AI agents, no Docker until `../phase.txt` marks the corresponding step as done.
