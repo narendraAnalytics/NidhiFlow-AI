@@ -10,16 +10,13 @@ import {
 } from "react";
 import {
   createUserWithEmailAndPassword,
-  getRedirectResult,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
-  signInWithRedirect,
   signOut,
   type User,
 } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
-import { toast } from "sonner";
 import { auth, googleProvider } from "@/lib/firebase";
 
 type AuthContextValue = {
@@ -61,10 +58,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getRedirectResult(auth).catch((error) => {
-      toast.error(friendlyAuthError(error));
-    });
-
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
@@ -83,19 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await createUserWithEmailAndPassword(auth, email, password);
       },
       signInGoogle: async () => {
-        try {
-          await signInWithPopup(auth, googleProvider);
-        } catch (error) {
-          if (
-            error instanceof FirebaseError &&
-            (error.code === "auth/popup-blocked" ||
-              error.code === "auth/operation-not-supported-in-this-environment")
-          ) {
-            await signInWithRedirect(auth, googleProvider);
-            return;
-          }
-          throw error;
-        }
+        await signInWithPopup(auth, googleProvider);
       },
       logout: async () => {
         await signOut(auth);
