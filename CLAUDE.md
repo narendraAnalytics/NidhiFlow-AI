@@ -34,6 +34,7 @@ Frontend is live on Vercel: https://nidhiflow-ai.vercel.app/ (deployed manually 
 - The Firebase MCP session caches project state (e.g. billing plan). If a value you just changed in the console (like a Blaze upgrade) doesn't show up in `firebase_get_environment`, reconnect via `/mcp` before retrying.
 - New GCP projects default Cloud SQL to "Enterprise Plus" edition, which rejects shared-core tiers like `db-f1-micro`. Pass `--edition=ENTERPRISE` explicitly for cost-sensitive dev instances.
 - Application Default Credentials (`gcloud auth application-default login`) aren't set up by default and require an interactive browser login — hand this to the user via `! <command>`, don't try to run it yourself.
+- If Firebase Auth (e.g. Google popup sign-in) fails in a real Chrome profile but works fine in Incognito, the real bug is usually already fixed server-side (unauthorized domain, COOP headers, etc.) — the profile itself is just wedged with stale cookies/localStorage/IndexedDB/service-worker state from earlier broken attempts. Fix: `chrome://settings/content/all` → search the domain → **Clear data** → retry in a fresh tab.
 
 ## Git structure
 
