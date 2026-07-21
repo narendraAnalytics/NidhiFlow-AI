@@ -3,6 +3,9 @@ import type {
   CustomerResponse,
   LoanApplicationCreate,
   LoanApplicationResponse,
+  LoanApplicationSubmit,
+  LoanDocumentCreate,
+  LoanDocumentResponse,
 } from "@/types/loan";
 import type { DashboardStatsResponse } from "@/types/dashboard";
 
@@ -56,4 +59,16 @@ export function createLoanApplication(data: LoanApplicationCreate, idToken?: str
 
 export function getDashboardStats(idToken?: string) {
   return get<DashboardStatsResponse>("/dashboard/stats", idToken);
+}
+
+export function createDocument(data: LoanDocumentCreate, idToken?: string) {
+  return post<LoanDocumentResponse>("/documents", data, idToken);
+}
+
+export function submitLoanApplication(
+  loanId: string,
+  data: LoanApplicationSubmit,
+  idToken?: string,
+) {
+  return post<LoanApplicationResponse>(`/loan/${loanId}/submit`, data, idToken);
 }

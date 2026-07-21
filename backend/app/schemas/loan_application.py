@@ -21,6 +21,11 @@ class LoanApplicationCreate(BaseModel):
     branch: Optional[str] = None
 
 
+class LoanApplicationSubmit(BaseModel):
+    changed_by: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class LoanApplicationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

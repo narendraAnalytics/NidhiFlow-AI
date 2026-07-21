@@ -9,6 +9,9 @@ import { Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/auth-context";
 import { createCustomer, createLoanApplication } from "@/lib/api";
+import { DocumentUploadSection } from "./document-upload-section";
+
+type Phase = "form" | "documents" | "done";
 
 const loanApplicationSchema = z.object({
   full_name: z.string().min(1, "Full name is required"),
@@ -39,6 +42,8 @@ export default function LoanApplicationPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+  const [phase, setPhase] = useState<Phase>("form");
+  const [loanId, setLoanId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -73,7 +78,7 @@ export default function LoanApplicationPage() {
         },
         idToken,
       );
-      await createLoanApplication(
+      const loanApplication = await createLoanApplication(
         {
           customer_id: customer.id,
           loan_type: values.loan_type,
@@ -88,7 +93,9 @@ export default function LoanApplicationPage() {
         },
         idToken,
       );
-      toast.success("Loan application submitted.");
+      setLoanId(loanApplication.id);
+      setPhase("documents");
+      toast.success("Loan application created — now add supporting documents.");
     } catch {
       toast.error("Submission failed. Please try again.");
     } finally {
@@ -106,10 +113,27 @@ export default function LoanApplicationPage() {
           Loan Application
         </h1>
         <p className="mb-6 text-[13.5px] leading-relaxed text-white/50">
-          Enter customer and loan details. No documents, OCR, or underwriting
-          at this step — this just records the application.
+          {phase === "form" &&
+            "Enter customer and loan details, then upload supporting documents."}
+          {phase === "documents" && "Add at least one document, then submit the application."}
+          {phase === "done" && "Your application has been submitted for processing."}
         </p>
 
+        {phase === "documents" && loanId && (
+          <DocumentUploadSection loanId={loanId} onSubmitted={() => setPhase("done")} />
+        )}
+
+        {phase === "done" && (
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard")}
+            className="nf-cta inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] py-3.5 text-[15px] font-extrabold text-white shadow-[0_10px_30px_rgba(59,130,246,0.4)] transition-all"
+          >
+            Go to dashboard
+          </button>
+        )}
+
+        {phase === "form" && (
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
           <div>
             <h2 className="mb-3 text-[14px] font-bold text-white/90">Customer details</h2>
@@ -248,6 +272,7 @@ export default function LoanApplicationPage() {
             )}
           </button>
         </form>
+        )}
       </div>
     </main>
   );

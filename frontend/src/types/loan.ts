@@ -63,3 +63,22 @@ export interface LoanApplicationResponse extends LoanApplicationCreate {
   created_at: string;
   updated_at: string;
 }
+
+export interface LoanApplicationSubmit {
+  changed_by?: string;
+  notes?: string;
+}
+
+export interface LoanDocumentCreate {
+  loan_application_id: string;
+  document_name: string;
+  document_type: DocumentType;
+  firebase_url?: string;
+  uploaded_by?: string;
+}
+
+export interface LoanDocumentResponse extends LoanDocumentCreate {
+  id: string;
+  upload_time: string;
+  status: DocumentStatus;
+}

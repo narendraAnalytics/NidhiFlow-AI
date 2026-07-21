@@ -14,4 +14,4 @@ Next.js 16.2.10, React 19.2.4, Tailwind CSS v4, `@tanstack/react-query`, `react-
 
 ## Phase discipline
 
-We are in Phase 1 (foundation). Do not add Firebase SDK calls, Docker files, or agent-related UI until `../phase.txt` marks the corresponding step as done.
+We are in Phase 2 (`../phase2.txt`). Step 1 (loan-application intake page, dashboard) is complete. Step 2 (real document upload via Firebase Storage, in `loan-application/document-upload-section.tsx`) is in progress. Do not add Docker files or agent-related UI until `../phase2.txt` marks the corresponding step as done.

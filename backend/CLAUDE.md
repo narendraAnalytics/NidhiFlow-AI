@@ -22,7 +22,7 @@ app/core/      config, startup, cross-cutting concerns
 app/models/    DB models
 app/schemas/   pydantic schemas
 app/services/  business logic
-app/agents/    stays empty until Phase 2 — do not add logic yet
+app/agents/    Phase 2 Step 2: typed LangGraph state only (state.py) — no graph/nodes/supervisor yet
 app/utils/     shared helpers
 ```
 
@@ -38,4 +38,4 @@ Don't echo raw exception text from DB/infra errors into HTTP responses (can leak
 
 ## Phase discipline
 
-We are in Phase 1 (foundation). No business logic, no LangGraph/AI agents, no Docker until `../phase.txt` marks the corresponding step as done.
+We are in Phase 2 (`../phase2.txt`). Step 1 (loan/customer/document models + CRUD) is complete. Step 2 (document upload, intake submit, LangGraph state) is in progress — the LangGraph gate is lifted only for the typed state schema in `app/agents/state.py`; no graph, nodes, or supervisor logic until Step 6. No Docker until `../phase2.txt` marks the corresponding step as done.
