@@ -11,6 +11,7 @@ export function HeroBackground() {
         alt=""
         fill
         priority
+        unoptimized
         className="object-cover object-center"
       />
       {/* Dark overlay so the photo reads as ambient texture, not a bright wash */}

@@ -28,6 +28,7 @@ export function Navbar() {
             width={38}
             height={38}
             priority
+            unoptimized
             className="object-contain drop-shadow-[0_2px_8px_rgba(124,77,255,0.45)]"
           />
           <span

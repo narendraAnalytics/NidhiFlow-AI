@@ -159,6 +159,7 @@ export function CommandCenter() {
               alt=""
               width={84}
               height={84}
+              unoptimized
               className="object-contain drop-shadow-[0_0_18px_rgba(38,217,255,0.6)]"
               style={{ animation: "nfFloat 5s ease-in-out infinite" }}
             />
@@ -234,7 +235,7 @@ export function CommandCenter() {
                   style={{ background: inf.iconBg }}
                 >
                   {inf.logo ? (
-                    <Image src={inf.logo} alt="" width={18} height={18} className="object-contain" />
+                    <Image src={inf.logo} alt="" width={18} height={18} unoptimized className="object-contain" />
                   ) : (
                     inf.Icon && <inf.Icon size={18} color="#fff" strokeWidth={2.2} />
                   )}

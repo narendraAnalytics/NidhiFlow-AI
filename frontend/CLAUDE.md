@@ -4,6 +4,8 @@
 
 This is the Next.js frontend for **NidhiFlow AI – Enterprise Agentic Loan Operations Platform**. It deploys to Vercel and will talk to a FastAPI backend (not built yet) over HTTPS at `/api`.
 
+**Live deployment:** https://nidhiflow-ai.vercel.app/
+
 For project-wide context (architecture, current phase, roadmap), see the root `CLAUDE.md` and `../phase.txt` — this file intentionally does not duplicate that content. Check `phase.txt` before assuming a step (Firebase, backend, Docker, etc.) is ready to use.
 
 ## Stack already installed here

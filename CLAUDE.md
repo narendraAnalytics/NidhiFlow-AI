@@ -19,6 +19,10 @@ Google Cloud CLI and Firebase MCP setup happen one step at a time, as separately
 
 Never describe the platform as "RBI compliant." Always phrase it as "designed using principles from the RBI Digital Lending Directions, 2025."
 
+## Deployment
+
+Frontend is live on Vercel: https://nidhiflow-ai.vercel.app/ (deployed manually by the user; not automated via CI/CD — see phase discipline above). Backend has no deployment yet — still local-only (`localhost:8000`).
+
 ## Subprojects
 
 - `frontend/` has its own `CLAUDE.md` (which imports `AGENTS.md`) with Next.js-version-specific rules — this installed Next.js version has breaking changes vs. typical training data, so check `frontend/node_modules/next/dist/docs/` before writing App Router or config code there. Those rules apply in addition to this file.

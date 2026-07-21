@@ -84,7 +84,7 @@ export function Hero() {
             <Check size={15} strokeWidth={2.6} /> No credit card
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <Check size={15} strokeWidth={2.6} /> 14-day free trial
+            <Check size={15} strokeWidth={2.6} /> Human-in-the-loop decisions
           </span>
           <span className="inline-flex items-center gap-1.5">
             <Check size={15} strokeWidth={2.6} /> Cancel anytime
@@ -106,7 +106,7 @@ export function Hero() {
                     // eslint-disable-next-line @next/next/no-img-element -- next/image blocks remote SVG optimization; simple-icons serves fixed-size SVGs that don't need it
                     <img src={tb.icon} alt="" width={13} height={13} className="object-contain" />
                   ) : (
-                    <Image src={tb.icon} alt="" width={13} height={13} className="object-contain" />
+                    <Image src={tb.icon} alt="" width={13} height={13} unoptimized className="object-contain" />
                   )}
                 </span>
                 {tb.name}
