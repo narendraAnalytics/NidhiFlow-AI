@@ -27,6 +27,7 @@ export function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
+  const googleInitialized = useRef(false);
 
   const {
     register,
@@ -46,13 +47,16 @@ export function AuthForm() {
   useEffect(() => {
     if (loading || user) return;
 
+    if (googleInitialized.current) return;
+
     let cancelled = false;
     const tryInit = () => {
-      if (cancelled) return;
+      if (cancelled || googleInitialized.current) return;
       if (!window.google?.accounts?.id || !googleBtnRef.current) {
         requestAnimationFrame(tryInit);
         return;
       }
+      googleInitialized.current = true;
       window.google.accounts.id.initialize({
         client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
         callback: async (response) => {
