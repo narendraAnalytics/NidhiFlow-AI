@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Sora, Manrope } from "next/font/google";
+import { Toaster } from "sonner";
+import { AuthProvider } from "@/contexts/auth-context";
 import "./globals.css";
 
 const sora = Sora({
@@ -30,7 +32,12 @@ export default function RootLayout({
       lang="en"
       className={`${sora.variable} ${manrope.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AuthProvider>
+          {children}
+          <Toaster position="top-center" richColors closeButton />
+        </AuthProvider>
+      </body>
     </html>
   );
 }

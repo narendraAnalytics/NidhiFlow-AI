@@ -2,8 +2,12 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Menu, X, ArrowRight } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowRight, LogOut, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
+import type { User as FirebaseUser } from "firebase/auth";
 
 const LOGO_URL =
   "https://res.cloudinary.com/dkqbzwicr/image/upload/v1784610412/LogoNidhiFlowAI_wqxhyg.png";
@@ -15,8 +19,49 @@ const NAV_LINKS = [
   { href: "#enterprise", label: "Enterprise" },
 ];
 
+function UserAvatar({ user, size = 24 }: { user: FirebaseUser; size?: number }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const initial = (user.displayName || user.email || "?").charAt(0).toUpperCase();
+
+  if (user.photoURL && !imgFailed) {
+    return (
+      <Image
+        src={user.photoURL}
+        alt={user.displayName || user.email || "Account"}
+        width={size}
+        height={size}
+        unoptimized
+        onError={() => setImgFailed(true)}
+        className="rounded-full object-cover"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
+  return (
+    <span
+      className="flex items-center justify-center rounded-full bg-gradient-to-br from-[#26D9FF] to-[#7C4DFF] font-bold text-white"
+      style={{ width: size, height: size, fontSize: size * 0.5 }}
+    >
+      {initial}
+    </span>
+  );
+}
+
 export function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const router = useRouter();
+
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "there";
+
+  const handleLogout = async () => {
+    setAccountMenuOpen(false);
+    setMenuOpen(false);
+    await logout();
+    router.replace("/");
+  };
 
   return (
     <div className="sticky top-3.5 z-50 px-4">
@@ -54,13 +99,35 @@ export function Navbar() {
             </a>
           ))}
         </div>
-        <div className="hidden flex-shrink-0 items-center gap-2.5 md:flex">
-          <a
-            href="#demo"
-            className="nf-cta inline-flex items-center gap-2 rounded-[18px] bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] px-5 py-2.5 text-[14.5px] font-bold text-white shadow-[0_6px_20px_rgba(124,77,255,0.4)] transition-all"
-          >
-            Request Demo <ArrowRight size={15} />
-          </a>
+        <div className="relative hidden flex-shrink-0 items-center gap-2.5 md:flex">
+          {user ? (
+            <div className="relative">
+              <button
+                onClick={() => setAccountMenuOpen((v) => !v)}
+                className="inline-flex items-center gap-2 rounded-[18px] border border-white/20 bg-white/10 px-4 py-2.5 text-[14.5px] font-bold text-white backdrop-blur-xl transition-colors hover:bg-white/15"
+              >
+                <UserAvatar user={user} size={24} />
+                Welcome, {displayName}
+              </button>
+              {accountMenuOpen && (
+                <div className="absolute right-0 top-[calc(100%+8px)] w-48 overflow-hidden rounded-2xl border border-white/15 bg-[#0f1b33]/95 py-1.5 shadow-[0_16px_48px_rgba(0,0,0,0.4)] backdrop-blur-2xl">
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[14px] font-semibold text-white/85 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    <LogOut size={15} /> Log out
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              href="/auth"
+              className="nf-cta inline-flex items-center gap-2 rounded-[18px] bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] px-5 py-2.5 text-[14.5px] font-bold text-white shadow-[0_6px_20px_rgba(124,77,255,0.4)] transition-all"
+            >
+              Request Demo <ArrowRight size={15} />
+            </Link>
+          )}
         </div>
 
         {/* Mobile toggle */}
@@ -88,12 +155,23 @@ export function Navbar() {
             {link.label}
           </a>
         ))}
-        <a
-          href="#demo"
-          className="mt-1 rounded-2xl bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] px-4 py-3.5 text-center font-bold text-white shadow-[0_6px_20px_rgba(124,77,255,0.4)]"
-        >
-          Request Demo →
-        </a>
+        {user ? (
+          <button
+            onClick={handleLogout}
+            className="mt-1 inline-flex items-center justify-center gap-2.5 rounded-2xl border border-white/20 bg-white/10 px-4 py-3.5 text-center font-bold text-white"
+          >
+            <UserAvatar user={user} size={22} />
+            Log out ({displayName})
+          </button>
+        ) : (
+          <Link
+            href="/auth"
+            onClick={() => setMenuOpen(false)}
+            className="mt-1 rounded-2xl bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] px-4 py-3.5 text-center font-bold text-white shadow-[0_6px_20px_rgba(124,77,255,0.4)]"
+          >
+            Request Demo →
+          </Link>
+        )}
       </div>
     </div>
   );

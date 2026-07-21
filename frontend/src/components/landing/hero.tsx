@@ -1,9 +1,11 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, Play, Cloud } from "lucide-react";
+import { ArrowRight, Check, Play, Cloud, LayoutDashboard } from "lucide-react";
 import { CommandCenter } from "./command-center";
+import { useAuth } from "@/contexts/auth-context";
 
 const TECH_BADGES = [
   {
@@ -21,6 +23,8 @@ const TECH_BADGES = [
 ];
 
 export function Hero() {
+  const { user } = useAuth();
+
   return (
     <div className="relative z-10 mx-auto flex max-w-[1240px] flex-wrap items-start gap-14 px-6 pb-6 pt-16">
       {/* Left */}
@@ -61,13 +65,23 @@ export function Hero() {
         </p>
 
         <div className="flex flex-wrap gap-4">
-          <a
-            href="#trial"
-            className="nf-cta inline-flex items-center gap-2.5 rounded-[20px] bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] px-[30px] py-4 text-[16px] font-extrabold text-white shadow-[0_10px_30px_rgba(59,130,246,0.4),0_0_40px_rgba(38,217,255,0.25)] transition-all"
-          >
-            Start Free Trial
-            <ArrowRight size={18} />
-          </a>
+          {user ? (
+            <Link
+              href="/"
+              className="nf-cta inline-flex items-center gap-2.5 rounded-[20px] bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] px-[30px] py-4 text-[16px] font-extrabold text-white shadow-[0_10px_30px_rgba(59,130,246,0.4),0_0_40px_rgba(38,217,255,0.25)] transition-all"
+            >
+              <LayoutDashboard size={18} />
+              Dashboard
+            </Link>
+          ) : (
+            <Link
+              href="/auth"
+              className="nf-cta inline-flex items-center gap-2.5 rounded-[20px] bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] px-[30px] py-4 text-[16px] font-extrabold text-white shadow-[0_10px_30px_rgba(59,130,246,0.4),0_0_40px_rgba(38,217,255,0.25)] transition-all"
+            >
+              Start Free Trial
+              <ArrowRight size={18} />
+            </Link>
+          )}
           <a
             href="#tour"
             className="nf-tour inline-flex items-center gap-2.5 rounded-[20px] border border-white/25 bg-white/10 px-7 py-4 text-[16px] font-bold text-white backdrop-blur-xl transition-all"
