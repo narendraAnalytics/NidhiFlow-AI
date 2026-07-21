@@ -8,6 +8,7 @@ declare global {
           initialize: (config: {
             client_id: string;
             callback: (response: { credential: string }) => void;
+            error_callback?: (error: { type: string; message?: string }) => void;
           }) => void;
           renderButton: (
             parent: HTMLElement,

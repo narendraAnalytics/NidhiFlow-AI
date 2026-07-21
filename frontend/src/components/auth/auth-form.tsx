@@ -63,6 +63,9 @@ export function AuthForm() {
             toast.error(friendlyAuthError(error));
           }
         },
+        error_callback: () => {
+          toast.error("Google sign-in failed to start. Please try again.");
+        },
       });
       window.google.accounts.id.renderButton(googleBtnRef.current, {
         theme: "filled_black",
@@ -227,42 +230,42 @@ export function AuthForm() {
               )}
             </button>
           </form>
-
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-white/15" />
-            <span className="text-[12.5px] font-semibold text-white/40">or continue with</span>
-            <div className="h-px flex-1 bg-white/15" />
-          </div>
-
-          <div ref={googleBtnRef} className="flex w-full justify-center" />
-
-          <p className="mt-6 text-center text-[13px] text-white/50">
-            {mode === "signin" ? (
-              <>
-                Don&apos;t have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => switchMode("signup")}
-                  className="font-bold text-[#7DD8FF] hover:text-[#A5E6FF]"
-                >
-                  Sign up
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => switchMode("signin")}
-                  className="font-bold text-[#7DD8FF] hover:text-[#A5E6FF]"
-                >
-                  Sign in
-                </button>
-              </>
-            )}
-          </p>
         </motion.div>
       </AnimatePresence>
+
+      <div className="my-6 flex items-center gap-3">
+        <div className="h-px flex-1 bg-white/15" />
+        <span className="text-[12.5px] font-semibold text-white/40">or continue with</span>
+        <div className="h-px flex-1 bg-white/15" />
+      </div>
+
+      <div ref={googleBtnRef} className="flex w-full justify-center" />
+
+      <p className="mt-6 text-center text-[13px] text-white/50">
+        {mode === "signin" ? (
+          <>
+            Don&apos;t have an account?{" "}
+            <button
+              type="button"
+              onClick={() => switchMode("signup")}
+              className="font-bold text-[#7DD8FF] hover:text-[#A5E6FF]"
+            >
+              Sign up
+            </button>
+          </>
+        ) : (
+          <>
+            Already have an account?{" "}
+            <button
+              type="button"
+              onClick={() => switchMode("signin")}
+              className="font-bold text-[#7DD8FF] hover:text-[#A5E6FF]"
+            >
+              Sign in
+            </button>
+          </>
+        )}
+      </p>
     </div>
   );
 }
