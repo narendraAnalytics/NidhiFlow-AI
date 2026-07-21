@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Sora, Manrope } from "next/font/google";
+import Script from "next/script";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/auth-context";
 import "./globals.css";
@@ -33,6 +34,7 @@ export default function RootLayout({
       className={`${sora.variable} ${manrope.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
         <AuthProvider>
           {children}
           <Toaster position="top-center" richColors closeButton />

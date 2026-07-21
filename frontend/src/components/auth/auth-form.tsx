@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,11 +22,11 @@ type Mode = "signin" | "signup";
 
 export function AuthForm() {
   const router = useRouter();
-  const { user, loading, signInEmail, signUpEmail, signInGoogle } = useAuth();
+  const { user, loading, signInEmail, signUpEmail, signInWithGoogleCredential } = useAuth();
   const [mode, setMode] = useState<Mode>("signin");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const googleBtnRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -42,6 +42,42 @@ export function AuthForm() {
       router.replace("/");
     }
   }, [loading, user, router]);
+
+  useEffect(() => {
+    if (loading || user) return;
+
+    let cancelled = false;
+    const tryInit = () => {
+      if (cancelled) return;
+      if (!window.google?.accounts?.id || !googleBtnRef.current) {
+        requestAnimationFrame(tryInit);
+        return;
+      }
+      window.google.accounts.id.initialize({
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+        callback: async (response) => {
+          try {
+            await signInWithGoogleCredential(response.credential);
+            router.replace("/");
+          } catch (error) {
+            toast.error(friendlyAuthError(error));
+          }
+        },
+      });
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: "filled_black",
+        size: "large",
+        shape: "pill",
+        width: 360,
+        text: "continue_with",
+      });
+    };
+    tryInit();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user, router, signInWithGoogleCredential]);
 
   const switchMode = (next: Mode) => {
     setMode(next);
@@ -64,19 +100,7 @@ export function AuthForm() {
     }
   };
 
-  const onGoogle = async () => {
-    setGoogleSubmitting(true);
-    try {
-      await signInGoogle();
-      router.replace("/");
-    } catch (error) {
-      toast.error(friendlyAuthError(error));
-    } finally {
-      setGoogleSubmitting(false);
-    }
-  };
-
-  const busy = submitting || googleSubmitting;
+  const busy = submitting;
 
   return (
     <div className="w-full max-w-[440px] rounded-[28px] border border-white/15 bg-white/10 p-7 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl sm:p-9">
@@ -210,21 +234,7 @@ export function AuthForm() {
             <div className="h-px flex-1 bg-white/15" />
           </div>
 
-          <button
-            type="button"
-            onClick={onGoogle}
-            disabled={busy}
-            className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-white/20 bg-white/95 py-3 text-[14.5px] font-bold text-[#1F2937] shadow-[0_6px_20px_rgba(0,0,0,0.15)] transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {googleSubmitting ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
-              <>
-                <GoogleGlyph />
-                Continue with Google
-              </>
-            )}
-          </button>
+          <div ref={googleBtnRef} className="flex w-full justify-center" />
 
           <p className="mt-6 text-center text-[13px] text-white/50">
             {mode === "signin" ? (
@@ -254,28 +264,5 @@ export function AuthForm() {
         </motion.div>
       </AnimatePresence>
     </div>
-  );
-}
-
-function GoogleGlyph() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-      <path
-        fill="#FFC107"
-        d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"
-      />
-      <path
-        fill="#FF3D00"
-        d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
-      />
-      <path
-        fill="#4CAF50"
-        d="M24 44c5.5 0 10.4-2.1 14.1-5.6l-6.5-5.5C29.6 34.7 26.9 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.3 44 24 44z"
-      />
-      <path
-        fill="#1976D2"
-        d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.5C40.7 36.9 44 31 44 24c0-1.3-.1-2.7-.4-3.5z"
-      />
-    </svg>
   );
 }
