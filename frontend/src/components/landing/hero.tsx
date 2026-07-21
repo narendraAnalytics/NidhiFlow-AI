@@ -67,7 +67,7 @@ export function Hero() {
         <div className="flex flex-wrap gap-4">
           {user ? (
             <Link
-              href="/"
+              href="/dashboard"
               className="nf-cta inline-flex items-center gap-2.5 rounded-[20px] bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] px-[30px] py-4 text-[16px] font-extrabold text-white shadow-[0_10px_30px_rgba(59,130,246,0.4),0_0_40px_rgba(38,217,255,0.25)] transition-all"
             >
               <LayoutDashboard size={18} />

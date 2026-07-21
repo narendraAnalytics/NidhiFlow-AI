@@ -20,6 +20,17 @@
   --bright-amber-on-light: #a16207;
   --bright-rose-on-light: #be185d;
   --bright-mint-on-light: #15803d;
+
+  /* Dashboard accent set (dashboardpage.txt brief) */
+  --brand-emerald: #22c55e;
+  --brand-teal: #14b8a6;
+  --brand-orange: #f59e0b;
+  --brand-sky: #5ca9ff;
+  --brand-purple: #a855f7;
+
+  --bright-teal-on-light: #0f766e;
+  --bright-purple-on-light: #7e22ce;
+  --bright-sky-on-light: #1d4ed8;
 }
 
 @theme inline {
@@ -27,6 +38,24 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-manrope);
   --font-heading: var(--font-sora);
+
+  --color-brand-cyan: var(--brand-cyan);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-violet: var(--brand-violet);
+  --color-brand-pink: var(--brand-pink);
+  --color-brand-emerald: var(--brand-emerald);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-sky: var(--brand-sky);
+  --color-brand-purple: var(--brand-purple);
+
+  --color-bright-cyan-on-light: var(--bright-cyan-on-light);
+  --color-bright-amber-on-light: var(--bright-amber-on-light);
+  --color-bright-rose-on-light: var(--bright-rose-on-light);
+  --color-bright-mint-on-light: var(--bright-mint-on-light);
+  --color-bright-teal-on-light: var(--bright-teal-on-light);
+  --color-bright-purple-on-light: var(--bright-purple-on-light);
+  --color-bright-sky-on-light: var(--bright-sky-on-light);
 }
 
 body {
