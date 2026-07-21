@@ -44,6 +44,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   "auth/cancelled-popup-request": "Google sign-in was cancelled.",
   "auth/popup-blocked": "Your browser blocked the Google sign-in popup. Please allow popups and try again.",
   "auth/operation-not-supported-in-this-environment": "Google sign-in isn't supported in this browser. Try a different browser.",
+  "auth/unauthorized-domain": "This domain isn't authorized for Google sign-in yet. Contact the site admin.",
   "auth/network-request-failed": "Network error. Check your connection and try again.",
   "auth/too-many-requests": "Too many attempts. Please wait a moment and try again.",
 };
