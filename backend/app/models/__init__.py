@@ -7,6 +7,7 @@ from app.models.loan_application import LoanApplication
 from app.models.loan_document import LoanDocument
 from app.models.loan_status_history import LoanStatusHistory
 from app.models.loan_validation_summary import LoanValidationSummary
+from app.models.node_execution import NodeExecution
 from app.models.workflow_event import WorkflowEvent
 from app.models.workflow_execution import WorkflowExecution
 
@@ -21,6 +22,7 @@ __all__ = [
     "LoanValidationSummary",
     "WorkflowExecution",
     "WorkflowEvent",
+    "NodeExecution",
     "LoanType",
     "LoanStatus",
     "DocumentType",

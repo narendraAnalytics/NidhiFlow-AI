@@ -6,6 +6,7 @@ from app.api.dashboard import router as dashboard_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
 from app.api.loans import router as loans_router
+from app.api.monitoring import router as monitoring_router
 
 app = FastAPI(title="NidhiFlow AI Backend")
 
@@ -22,6 +23,7 @@ app.include_router(customers_router)
 app.include_router(loans_router)
 app.include_router(documents_router)
 app.include_router(dashboard_router)
+app.include_router(monitoring_router)
 
 
 @app.get("/health")

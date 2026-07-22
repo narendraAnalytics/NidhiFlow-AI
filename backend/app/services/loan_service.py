@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.agents import LoanWorkflowState, loan_workflow_graph
+from app.core.config import ORCHESTRATOR_MAX_RETRY_ATTEMPTS
 from app.models.customer import Customer
 from app.models.document_ocr_result import DocumentOcrResult
 from app.models.document_validation_result import DocumentValidationResult
@@ -12,6 +13,7 @@ from app.models.enums import LoanStatus
 from app.models.loan_application import LoanApplication
 from app.models.loan_status_history import LoanStatusHistory
 from app.models.loan_validation_summary import LoanValidationSummary
+from app.models.node_execution import NodeExecution
 from app.models.workflow_event import WorkflowEvent
 from app.models.workflow_execution import WorkflowExecution
 from app.schemas.loan_application import LoanApplicationCreate, LoanApplicationSubmit
@@ -36,7 +38,7 @@ def get_loan_application(db: Session, loan_id: uuid.UUID) -> LoanApplication | N
     return db.query(LoanApplication).filter(LoanApplication.id == loan_id).first()
 
 
-def run_loan_workflow(db: Session, loan: LoanApplication) -> LoanWorkflowState:
+def run_loan_workflow(db: Session, loan: LoanApplication, retry_count: int = 0) -> LoanWorkflowState:
     documents = list_documents_for_loan(db, loan.id)
     customer = db.query(Customer).filter(Customer.id == loan.customer_id).first()
 
@@ -73,15 +75,19 @@ def run_loan_workflow(db: Session, loan: LoanApplication) -> LoanWorkflowState:
         "errors": [],
         "next_stage": None,
         "workflow_status": "Draft",
-        "retry_count": 0,
+        "retry_count": retry_count,
         "decision": None,
         "decision_reason": None,
         "pipeline_completed": False,
         "pipeline_started_at": datetime.now(timezone.utc).isoformat(),
         "pipeline_finished_at": None,
+        "node_telemetry": [],
     }
     try:
-        return loan_workflow_graph.invoke(initial_state)
+        return loan_workflow_graph.invoke(
+            initial_state,
+            config={"configurable": {"thread_id": str(loan.id)}},
+        )
     except Exception:
         logger.exception(
             "loan_workflow_graph.invoke failed for loan_application_id=%s", loan.id
@@ -94,6 +100,39 @@ def run_loan_workflow(db: Session, loan: LoanApplication) -> LoanWorkflowState:
             "human_review_required": True,
             "errors": [*initial_state["errors"], "workflow invocation failed"],
         }
+
+
+def run_loan_workflow_with_recovery(
+    db: Session, loan: LoanApplication
+) -> tuple[LoanWorkflowState, list[LoanWorkflowState]]:
+    """Self-healing wrapper around run_loan_workflow(): if the pipeline
+    orchestrator decides "retry" (e.g. partial OCR) and the retry budget
+    isn't exhausted, re-invokes the graph on the same thread_id (so
+    checkpoint history accumulates across attempts for audit purposes).
+    Bounded at ORCHESTRATOR_MAX_RETRY_ATTEMPTS + 1 total attempts so this
+    can never loop forever.
+    """
+    attempts: list[LoanWorkflowState] = []
+    retry_count = 0
+    while True:
+        result = run_loan_workflow(db, loan, retry_count=retry_count)
+        attempts.append(result)
+
+        should_retry = (
+            result.get("decision") == "retry"
+            and result.get("retry_count", 0) < ORCHESTRATOR_MAX_RETRY_ATTEMPTS
+            and len(attempts) <= ORCHESTRATOR_MAX_RETRY_ATTEMPTS
+        )
+        if not should_retry:
+            return result, attempts
+
+        retry_count = result.get("retry_count", 0) + 1
+        logger.info(
+            "pipeline orchestrator requested retry: loan_application_id=%s next_retry_count=%d reason=%s",
+            loan.id,
+            retry_count,
+            result.get("decision_reason"),
+        )
 
 
 def persist_document_ocr_results(db: Session, workflow_result: LoanWorkflowState) -> None:
@@ -188,6 +227,30 @@ def persist_workflow_execution(
     return execution
 
 
+def persist_node_telemetry(
+    db: Session, execution: WorkflowExecution, workflow_result: LoanWorkflowState
+) -> None:
+    telemetry = workflow_result.get("node_telemetry", [])
+    if not telemetry:
+        return
+
+    for record in telemetry:
+        db.add(
+            NodeExecution(
+                workflow_execution_id=execution.id,
+                node_name=record["node_name"],
+                status=record["status"],
+                started_at=datetime.fromisoformat(record["started_at"]),
+                finished_at=datetime.fromisoformat(record["finished_at"]),
+                duration=record["duration"],
+                error_category=record.get("error_category"),
+                error_message=record.get("error_message"),
+                retry_attempt=record.get("retry_attempt", 0),
+            )
+        )
+    db.commit()
+
+
 def submit_loan_application(
     db: Session, loan: LoanApplication, data: LoanApplicationSubmit
 ) -> LoanApplication:
@@ -208,18 +271,21 @@ def submit_loan_application(
     db.commit()
     db.refresh(loan)
 
-    workflow_result = run_loan_workflow(db, loan)
+    workflow_result, attempts = run_loan_workflow_with_recovery(db, loan)
     logger.info(
-        "loan workflow completed: loan_application_id=%s stage=%s decision=%s human_review_required=%s errors=%s",
+        "loan workflow completed: loan_application_id=%s stage=%s decision=%s human_review_required=%s attempts=%d errors=%s",
         loan.id,
         workflow_result.get("current_stage"),
         workflow_result.get("decision"),
         workflow_result.get("human_review_required"),
+        len(attempts),
         workflow_result.get("errors"),
     )
     persist_document_ocr_results(db, workflow_result)
     persist_validation_results(db, loan, workflow_result)
-    persist_workflow_execution(db, loan, workflow_result)
+    execution = persist_workflow_execution(db, loan, workflow_result)
+    for attempt_result in attempts:
+        persist_node_telemetry(db, execution, attempt_result)
 
     next_status = (
         LoanStatus.PROCESSING if workflow_result.get("decision") == "continue" else LoanStatus.HUMAN_REVIEW

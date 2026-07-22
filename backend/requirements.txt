@@ -132,7 +132,10 @@ langgraph==1.2.9
 langgraph-checkpoint==4.1.1
     # via
     #   langgraph
+    #   langgraph-checkpoint-postgres
     #   langgraph-prebuilt
+langgraph-checkpoint-postgres==3.1.0
+    # via backend
 langgraph-prebuilt==1.1.0
     # via langgraph
 langgraph-sdk==0.4.2
@@ -147,6 +150,7 @@ msgpack==1.2.1
     # via cachecontrol
 orjson==3.11.9
     # via
+    #   langgraph-checkpoint-postgres
     #   langgraph-sdk
     #   langsmith
 ormsgpack==1.12.2
@@ -166,6 +170,16 @@ protobuf==7.35.1
     #   googleapis-common-protos
     #   grpcio-status
     #   proto-plus
+psycopg==3.3.4
+    # via
+    #   backend
+    #   langgraph-checkpoint-postgres
+psycopg-binary==3.3.4 ; implementation_name != 'pypy'
+    # via psycopg
+psycopg-pool==3.3.1
+    # via
+    #   langgraph-checkpoint-postgres
+    #   psycopg
 psycopg2-binary==2.9.12
     # via backend
 pyasn1==0.6.4
@@ -228,6 +242,8 @@ typing-extensions==4.16.0
     #   langchain-core
     #   langchain-protocol
     #   langsmith
+    #   psycopg
+    #   psycopg-pool
     #   pydantic
     #   pydantic-core
     #   sqlalchemy
@@ -237,6 +253,8 @@ typing-inspection==0.4.2
     # via
     #   fastapi
     #   pydantic
+tzdata==2026.3 ; sys_platform == 'win32'
+    # via psycopg
 urllib3==2.7.0
     # via requests
 uuid-utils==0.17.0

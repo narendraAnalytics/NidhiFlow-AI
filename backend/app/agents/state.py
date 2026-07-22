@@ -21,3 +21,4 @@ class LoanWorkflowState(TypedDict):
     pipeline_completed: bool
     pipeline_started_at: Optional[str]
     pipeline_finished_at: Optional[str]
+    node_telemetry: list[dict]

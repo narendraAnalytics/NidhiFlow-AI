@@ -23,6 +23,20 @@ config.set_main_option("sqlalchemy.url", DATABASE_URL)
 # for 'autogenerate' support
 target_metadata = Base.metadata
 
+# Tables owned by langgraph-checkpoint-postgres (created by
+# PostgresSaver.setup() in app/agents/graph.py, not by our SQLAlchemy
+# models) — excluded from autogenerate so `alembic check`/`revision
+# --autogenerate` don't propose dropping them.
+CHECKPOINT_TABLES = {"checkpoints", "checkpoint_blobs", "checkpoint_writes", "checkpoint_migrations"}
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    if type_ == "table" and name in CHECKPOINT_TABLES:
+        return False
+    if type_ == "index" and object.table.name in CHECKPOINT_TABLES:
+        return False
+    return True
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -45,6 +59,7 @@ def run_migrations_offline() -> None:
     context.configure(
         url=url,
         target_metadata=target_metadata,
+        include_object=include_object,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -68,7 +83,9 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
         )
 
         with context.begin_transaction():
