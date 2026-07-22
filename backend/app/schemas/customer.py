@@ -12,6 +12,8 @@ class CustomerCreate(BaseModel):
     pan: str
     aadhaar: str
     address: Optional[str] = None
+    age: Optional[int] = None
+    city: Optional[str] = None
 
 
 class CustomerResponse(BaseModel):
@@ -24,5 +26,7 @@ class CustomerResponse(BaseModel):
     pan: str
     aadhaar: str
     address: Optional[str] = None
+    age: Optional[int] = None
+    city: Optional[str] = None
     created_at: datetime
     updated_at: datetime

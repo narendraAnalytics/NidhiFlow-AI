@@ -19,6 +19,14 @@ class LoanApplicationCreate(BaseModel):
     tenure: Optional[int] = None
     interest_rate: Optional[Decimal] = None
     branch: Optional[str] = None
+    credit_score: Optional[int] = None
+    existing_emi: Optional[Decimal] = None
+    property_value: Optional[Decimal] = None
+    down_payment: Optional[Decimal] = None
+    employment_experience_years: Optional[int] = None
+    existing_loan_outstanding: Optional[Decimal] = None
+    bank_name: Optional[str] = None
+    monthly_household_expenses: Optional[Decimal] = None
 
 
 class LoanApplicationSubmit(BaseModel):
@@ -40,6 +48,14 @@ class LoanApplicationResponse(BaseModel):
     tenure: Optional[int] = None
     interest_rate: Optional[Decimal] = None
     branch: Optional[str] = None
+    credit_score: Optional[int] = None
+    existing_emi: Optional[Decimal] = None
+    property_value: Optional[Decimal] = None
+    down_payment: Optional[Decimal] = None
+    employment_experience_years: Optional[int] = None
+    existing_loan_outstanding: Optional[Decimal] = None
+    bank_name: Optional[str] = None
+    monthly_household_expenses: Optional[Decimal] = None
     status: LoanStatus
     created_at: datetime
     updated_at: datetime

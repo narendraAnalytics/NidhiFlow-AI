@@ -22,3 +22,12 @@ We are in Phase 2 (`../phase2.txt`). Step 1 (loan-application intake page, dashb
 - New data-fetching pages default to async Server Components (`await params`, direct `fetch` in the component) rather than client-side `useEffect`/`useState` — this Next.js version's modern pattern per `AGENTS.md`. The existing `app/dashboard/page.tsx` is still a Client Component (pre-dates this decision) — don't treat it as the pattern to copy for new pages.
 - Dynamic route error/not-found handling: `not-found.tsx` (Server Component, triggered by `notFound()`) and `error.tsx` (must be `"use client"`, receives `{ error, unstable_retry }` in this Next.js version — not the older `reset` prop) live alongside `page.tsx` in the same route segment.
 - Shared status-chip colors live in `lib/status-styles.ts` (`getStatusChipStyle`) and currency formatting in `lib/format.ts` (`formatCurrency`) — both were previously duplicated per-component; extend these instead of re-inlining.
+
+## Design tokens (light theme, established across dashboard-shell/topbar/sidebar/kpi-card)
+
+Reuse rather than reinvent: page bg `bg-[#f8fbff]` + blurred decorative blobs; cards `rounded-[24-28px] border border-white/60 bg-white/75 shadow-[0_8px_30px_rgba(15,27,51,0.06)] backdrop-blur-xl`; primary CTA gradient `from-[#26D9FF] via-[#3B82F6] to-[#A855F7]`; heading text `text-[#0f1b33]`, muted text `text-[#5b6b8c]`. The real brand logo is a Cloudinary PNG at the `LOGO_URL` const in `components/landing/navbar.tsx` (not a generated mark) — reuse that URL with `next/image` + `unoptimized` for any other page needing it.
+
+## Known noisy diagnostics (safe to ignore)
+
+- Tailwind v4 "canonical class" suggestions (e.g. `bg-gradient-to-r` → `bg-linear-to-r`) are cosmetic; the codebase consistently uses the `bg-gradient-to-*` form already — don't convert.
+- `npx tsc --noEmit` can transiently fail on `.next/dev/types/validator.ts` / `.next/types/validator.ts` right after a dev-server file save (stale route-type regen) — rerun once before treating it as a real error.

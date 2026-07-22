@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Clock3, FileStack, Target, Timer } from "lucide-react";
+import { CheckCircle2, Clock3, FileStack, Sparkles, Target, Timer } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { getDashboardStats } from "@/lib/api";
 import type { DashboardStatsResponse } from "@/types/dashboard";
@@ -36,8 +36,12 @@ export default function DashboardOverviewPage() {
         const idToken = await user.getIdToken();
         const data = await getDashboardStats(idToken);
         if (!cancelled) setStats(data);
-      } catch {
-        if (!cancelled) setError("Failed to load dashboard data.");
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load dashboard data."
+          );
+        }
       }
     })();
 
@@ -48,8 +52,12 @@ export default function DashboardOverviewPage() {
 
   if (error) {
     return (
-      <div className="rounded-[28px] border border-white/60 bg-white/75 p-6 text-[13.5px] text-[#be185d] shadow-[0_8px_30px_rgba(15,27,51,0.06)]">
-        {error}
+      <div className="rounded-[28px] border border-white/60 bg-white/75 p-6 shadow-[0_8px_30px_rgba(15,27,51,0.06)]">
+        <p className="text-[13.5px] font-medium text-[#be185d]">Couldn&apos;t load dashboard data</p>
+        <p className="mt-1 text-[12.5px] text-[#5b6b8c]">{error}</p>
+        <p className="mt-3 text-[12px] text-[#5b6b8c]">
+          Make sure the backend API is running, then refresh this page.
+        </p>
       </div>
     );
   }
@@ -58,6 +66,21 @@ export default function DashboardOverviewPage() {
     return (
       <div className="rounded-[28px] border border-white/60 bg-white/75 p-6 text-[13.5px] text-[#5b6b8c] shadow-[0_8px_30px_rgba(15,27,51,0.06)]">
         Loading dashboard…
+      </div>
+    );
+  }
+
+  if (stats.total_applications === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-[28px] border border-white/60 bg-white/75 p-14 text-center shadow-[0_8px_30px_rgba(15,27,51,0.06)]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#EEF2FF]">
+          <Sparkles className="h-6 w-6 text-[#6366F1]" />
+        </div>
+        <p className="text-[15px] font-semibold text-[#0f1b33]">No loan applications yet</p>
+        <p className="max-w-sm text-[13px] text-[#5b6b8c]">
+          Once a loan application is submitted, its progress, KPIs, and pipeline status will
+          appear here.
+        </p>
       </div>
     );
   }

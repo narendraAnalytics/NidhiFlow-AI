@@ -30,6 +30,9 @@ Frontend is live on Vercel: https://nidhiflow-ai.vercel.app/ (deployed manually 
 
 ## Infra gotchas (Firebase MCP / gcloud)
 
+- If the frontend shows "Failed to load dashboard data" or any API call fails, check first whether `cloud-sql-proxy.exe` and the backend (`uv run uvicorn main:app --reload`) are actually running — both are required locally and neither auto-starts. This was the root cause the one time it came up, not an app bug.
+- `cloud-sql-proxy.exe` is already installed at `C:\Users\ES\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\cloud-sql-proxy.exe` — no need to search for it or reinstall in a fresh session. Start it with:
+  `"C:\Users\ES\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\cloud-sql-proxy.exe" nidhiflow-ai-platform:asia-south1:nidhiflow-db-dev --port=5432 --gcloud-auth`
 - `firebase_init` for the `storage` feature is unreliable — it can report success while writing nothing and never provisioning the bucket. Verify with `gcloud storage buckets list --project=<id>`; if empty, create the bucket via Firebase Console, then hand-write `firebase.json`/`storage.rules` and deploy with `firebase_deploy`.
 - The Firebase MCP session caches project state (e.g. billing plan). If a value you just changed in the console (like a Blaze upgrade) doesn't show up in `firebase_get_environment`, reconnect via `/mcp` before retrying.
 - New GCP projects default Cloud SQL to "Enterprise Plus" edition, which rejects shared-core tiers like `db-f1-micro`. Pass `--edition=ENTERPRISE` explicitly for cost-sensitive dev instances.

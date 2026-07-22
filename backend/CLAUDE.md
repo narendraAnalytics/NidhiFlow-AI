@@ -36,6 +36,12 @@ Local dev DB access goes through the Cloud SQL Auth Proxy on `127.0.0.1:5432` �
 
 Don't echo raw exception text from DB/infra errors into HTTP responses (can leak DSN/credentials) — log server-side via `logging`, return a generic client-facing message.
 
+## Dev server reload gotcha
+
+`uvicorn --reload`'s file-watcher here does not reliably pick up edits to `app/models/` or `app/schemas/` — confirmed twice (new columns/fields silently missing from API responses after editing). After any model/schema change, manually restart: find the python PIDs (`Get-Process python`), kill them, then re-run `uv run uvicorn main:app --reload`. Don't trust a live API test after such an edit without doing this first.
+
+If `uv run <cmd>` fails with `Access is denied` on a `.venv/Lib/site-packages/...` file, the running server has it locked — use `./.venv/Scripts/python.exe -m <module>` (e.g. `-m alembic ...`) directly instead, which skips `uv sync`.
+
 ## Phase discipline
 
 We are in Phase 2 (`../phase2.txt`). Step 1 (loan/customer/document models + CRUD) is complete. Step 2 (document upload, intake submit, LangGraph state) is complete. Step 3 (minimal `StateGraph`) is complete. Step 4 (real Document Intelligence agent: Sarvam Vision OCR, `document_ocr_results` table) is complete. Step 5 (Validation & Compliance agent: Gemma 4 field extraction + deterministic cross-checks, `document_validation_results` + `loan_validation_summaries` tables) is complete. Step 6 (Pipeline Orchestrator: deterministic decision engine in `app/agents/pipeline_orchestrator/`, `workflow_executions`/`workflow_events` tables, `submit_loan_application()` now advances `loan.status` to `Processing` or `Human Review` based on the orchestrator's decision) is complete — backend only, frontend Pipeline Status panel deferred. Step 7 (Monitoring & Self-Healing: Postgres-backed LangGraph checkpointing via `langgraph-checkpoint-postgres`, per-node telemetry via `app/agents/monitoring/track_node` decorator + `node_executions` table, a bounded self-healing retry loop in `run_loan_workflow_with_recovery()`, and a read-only `GET /monitoring/health` endpoint) is complete. Graph is still linear (no conditional routing, no interrupts) — that's intentional per `../phase2.txt`; the checkpointer gives durability/audit, not skip-ahead resume, since there's no pause point yet. No Docker until `../phase2.txt` marks the corresponding step as done.

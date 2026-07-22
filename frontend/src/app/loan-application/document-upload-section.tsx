@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { createDocument, submitLoanApplication } from "@/lib/api";
 import { uploadLoanDocument } from "@/lib/storage";
 import type { DocumentType, LoanDocumentResponse } from "@/types/loan";
+import { inputClass, labelClass } from "./page";
 
 const DOCUMENT_TYPES: DocumentType[] = [
   "PAN Card",
@@ -26,10 +27,6 @@ const DOCUMENT_TYPES: DocumentType[] = [
   "Address Proof",
   "Other",
 ];
-
-const inputClass =
-  "w-full rounded-2xl border border-white/15 bg-white/5 py-3 px-4 text-[14.5px] text-white placeholder:text-white/30 outline-none transition-colors focus:border-[#26D9FF]/60 focus:bg-white/10 disabled:opacity-60";
-const labelClass = "mb-1.5 block text-[13px] font-semibold text-white/80";
 
 export function DocumentUploadSection({
   loanId,
@@ -93,7 +90,7 @@ export function DocumentUploadSection({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="mb-3 text-[14px] font-bold text-white/90">Upload documents</h2>
+        <h2 className="mb-3 text-[14px] font-bold text-[#0f1b33]">Upload documents</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <div>
             <label className={labelClass}>Document type</label>
@@ -116,14 +113,14 @@ export function DocumentUploadSection({
               type="file"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               disabled={uploading}
-              className="w-full rounded-2xl border border-white/15 bg-white/5 p-3 text-[13.5px] text-white/80 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-white"
+              className="w-full rounded-xl border border-[#e2e8f5] bg-white p-3 text-[13.5px] text-[#5b6b8c] file:mr-3 file:rounded-lg file:border-0 file:bg-[#EEF2FF] file:px-3 file:py-1.5 file:text-[#3B82F6] file:font-semibold"
             />
           </div>
           <button
             type="button"
             onClick={onAddDocument}
             disabled={!file || uploading}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-3 text-[14px] font-bold text-white transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#e2e8f5] bg-white px-5 py-3 text-[14px] font-bold text-[#0f1b33] transition-colors hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {uploading ? <Loader2 size={17} className="animate-spin" /> : <Plus size={17} />}
             Add
@@ -132,12 +129,12 @@ export function DocumentUploadSection({
       </div>
 
       {documents.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-2xl border border-white/15 bg-white/5 p-4">
+        <div className="flex flex-col gap-2 rounded-2xl border border-[#e2e8f5] bg-[#f8fbff] p-4">
           {documents.map((doc) => (
-            <div key={doc.id} className="flex items-center gap-2.5 text-[13.5px] text-white/85">
-              <FileCheck2 size={15} className="shrink-0 text-[#26D9FF]" />
+            <div key={doc.id} className="flex items-center gap-2.5 text-[13.5px] text-[#0f1b33]">
+              <FileCheck2 size={15} className="shrink-0 text-[#22C55E]" />
               <span className="truncate">{doc.document_name}</span>
-              <span className="ml-auto shrink-0 text-white/40">{doc.document_type}</span>
+              <span className="ml-auto shrink-0 text-[#9aa8c2]">{doc.document_type}</span>
             </div>
           ))}
         </div>

@@ -36,6 +36,8 @@ export interface CustomerCreate {
   pan: string;
   aadhaar: string;
   address?: string;
+  age?: number;
+  city?: string;
 }
 
 export interface CustomerResponse extends CustomerCreate {
@@ -55,6 +57,14 @@ export interface LoanApplicationCreate {
   tenure?: number;
   interest_rate?: number;
   branch?: string;
+  credit_score?: number;
+  existing_emi?: number;
+  property_value?: number;
+  down_payment?: number;
+  employment_experience_years?: number;
+  existing_loan_outstanding?: number;
+  bank_name?: string;
+  monthly_household_expenses?: number;
 }
 
 export interface LoanApplicationResponse extends LoanApplicationCreate {
