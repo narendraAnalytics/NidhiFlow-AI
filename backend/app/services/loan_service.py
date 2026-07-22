@@ -4,6 +4,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.agents import LoanWorkflowState, loan_workflow_graph
+from app.models.document_ocr_result import DocumentOcrResult
 from app.models.enums import LoanStatus
 from app.models.loan_application import LoanApplication
 from app.models.loan_status_history import LoanStatusHistory
@@ -38,6 +39,7 @@ def run_loan_workflow(db: Session, loan: LoanApplication) -> LoanWorkflowState:
         "documents": [
             {
                 "id": str(doc.id),
+                "document_name": doc.document_name,
                 "document_type": doc.document_type.value,
                 "firebase_url": doc.firebase_url,
                 "status": doc.status.value,
@@ -60,6 +62,25 @@ def run_loan_workflow(db: Session, loan: LoanApplication) -> LoanWorkflowState:
             "current_stage": "workflow_error",
             "errors": [*initial_state["errors"], "workflow invocation failed"],
         }
+
+
+def persist_document_ocr_results(db: Session, workflow_result: LoanWorkflowState) -> None:
+    results = workflow_result.get("agent_outputs", {}).get("document_intelligence", {}).get("results", [])
+    if not results:
+        return
+
+    for result in results:
+        db.add(
+            DocumentOcrResult(
+                document_id=result["document_id"],
+                document_type=result.get("document_type"),
+                ocr_markdown=result.get("ocr_markdown"),
+                ocr_json=result.get("ocr_json"),
+                processing_status=result["status"],
+                error_message=result.get("error"),
+            )
+        )
+    db.commit()
 
 
 def submit_loan_application(
@@ -90,4 +111,5 @@ def submit_loan_application(
         workflow_result.get("human_review_required"),
         workflow_result.get("errors"),
     )
+    persist_document_ocr_results(db, workflow_result)
     return loan

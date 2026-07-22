@@ -22,7 +22,7 @@ app/core/      config, startup, cross-cutting concerns
 app/models/    DB models
 app/schemas/   pydantic schemas
 app/services/  business logic
-app/agents/    Phase 2 Step 3: typed state (state.py) + minimal StateGraph (graph.py, nodes.py) — intake supervisor and document intelligence placeholder only, no OCR/LLM/routing/checkpointer yet
+app/agents/    Phase 2 Step 4: StateGraph (graph.py, nodes.py) + document_intelligence/ (Sarvam Vision OCR agent: sarvam_client.py, parser.py, schemas.py, agent.py) — OCR only, no LLM classification/extraction/routing/checkpointer yet
 app/utils/     shared helpers
 ```
 
@@ -38,4 +38,6 @@ Don't echo raw exception text from DB/infra errors into HTTP responses (can leak
 
 ## Phase discipline
 
-We are in Phase 2 (`../phase2.txt`). Step 1 (loan/customer/document models + CRUD) is complete. Step 2 (document upload, intake submit, LangGraph state) is complete. Step 3 (minimal `StateGraph`: deterministic Intake Supervisor → placeholder Document Intelligence node, wired into `/loan/{id}/submit`) is in progress — no OCR, LLM calls, specialized agents, conditional routing, or checkpointer until later steps. No Docker until `../phase2.txt` marks the corresponding step as done.
+We are in Phase 2 (`../phase2.txt`). Step 1 (loan/customer/document models + CRUD) is complete. Step 2 (document upload, intake submit, LangGraph state) is complete. Step 3 (minimal `StateGraph`: deterministic Intake Supervisor → Document Intelligence node, wired into `/loan/{id}/submit`) is complete. Step 4 (real Document Intelligence agent: Sarvam Vision OCR, `document_ocr_results` table) is complete — OCR only, no LLM classification/extraction, no specialized reasoning agents, no conditional routing, no checkpointer until later steps. No Docker until `../phase2.txt` marks the corresponding step as done.
+
+Sarvam OCR reads uploaded documents from Firebase Storage via `firebase-admin` + `credentials.ApplicationDefault()` (uses this machine's local gcloud ADC login — will need a service-account key once the backend is actually deployed). `SARVAM_API_KEY` blank-default means the document intelligence node skips gracefully (status `"skipped"`) rather than erroring when unset.

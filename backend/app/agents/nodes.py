@@ -1,5 +1,6 @@
 import logging
 
+from app.agents.document_intelligence.agent import run as run_document_intelligence
 from app.agents.state import LoanWorkflowState
 
 logger = logging.getLogger(__name__)
@@ -49,23 +50,40 @@ def intake_supervisor_node(state: LoanWorkflowState) -> dict:
 
 
 def document_intelligence_node(state: LoanWorkflowState) -> dict:
-    """Placeholder node — no OCR, no LLM. Records a pending-analysis entry
-    per document so later steps have a shape to extend into.
+    """Runs each document through Sarvam Vision OCR (job-based pipeline) and
+    records the parsed markdown/JSON per document. No LLM classification or
+    extraction here — document_type is the value already assigned at upload,
+    and field-level extraction is deferred to a later reasoning agent.
     """
     logger.info(
-        "document_intelligence: loan_application_id=%s (placeholder, no-op)",
+        "document_intelligence: loan_application_id=%s documents=%d",
         state["loan_application_id"],
+        len(state["documents"]),
     )
     try:
-        results = [
-            {"document_type": doc.get("document_type"), "status": "pending_analysis"}
-            for doc in state["documents"]
-        ]
+        results = run_document_intelligence(state["documents"])
+
+        succeeded = sum(1 for r in results if r.status == "parsed")
+        skipped = sum(1 for r in results if r.status == "skipped")
+        if not results:
+            overall_status = "parsed"
+        elif skipped == len(results):
+            overall_status = "skipped"
+        elif succeeded + skipped == len(results):
+            overall_status = "parsed"
+        elif succeeded == 0:
+            overall_status = "failed"
+        else:
+            overall_status = "partial"
+
         return {
             "current_stage": "document_intelligence",
             "agent_outputs": {
                 **state.get("agent_outputs", {}),
-                "document_intelligence": {"status": "placeholder", "results": results},
+                "document_intelligence": {
+                    "status": overall_status,
+                    "results": [r.model_dump(mode="json") for r in results],
+                },
             },
         }
     except Exception:
