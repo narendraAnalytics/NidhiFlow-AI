@@ -22,7 +22,7 @@ app/core/      config, startup, cross-cutting concerns
 app/models/    DB models
 app/schemas/   pydantic schemas
 app/services/  business logic
-app/agents/    Phase 2 Step 2: typed LangGraph state only (state.py) — no graph/nodes/supervisor yet
+app/agents/    Phase 2 Step 3: typed state (state.py) + minimal StateGraph (graph.py, nodes.py) — intake supervisor and document intelligence placeholder only, no OCR/LLM/routing/checkpointer yet
 app/utils/     shared helpers
 ```
 
@@ -38,4 +38,4 @@ Don't echo raw exception text from DB/infra errors into HTTP responses (can leak
 
 ## Phase discipline
 
-We are in Phase 2 (`../phase2.txt`). Step 1 (loan/customer/document models + CRUD) is complete. Step 2 (document upload, intake submit, LangGraph state) is in progress — the LangGraph gate is lifted only for the typed state schema in `app/agents/state.py`; no graph, nodes, or supervisor logic until Step 6. No Docker until `../phase2.txt` marks the corresponding step as done.
+We are in Phase 2 (`../phase2.txt`). Step 1 (loan/customer/document models + CRUD) is complete. Step 2 (document upload, intake submit, LangGraph state) is complete. Step 3 (minimal `StateGraph`: deterministic Intake Supervisor → placeholder Document Intelligence node, wired into `/loan/{id}/submit`) is in progress — no OCR, LLM calls, specialized agents, conditional routing, or checkpointer until later steps. No Docker until `../phase2.txt` marks the corresponding step as done.
