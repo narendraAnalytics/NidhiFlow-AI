@@ -1,6 +1,8 @@
 import logging
+from datetime import datetime, timezone
 
 from app.agents.document_intelligence.agent import run as run_document_intelligence
+from app.agents.pipeline_orchestrator.agent import run as run_pipeline_orchestrator
 from app.agents.state import LoanWorkflowState
 from app.agents.validation_compliance.agent import run as run_validation_compliance
 
@@ -140,4 +142,50 @@ def validation_compliance_node(state: LoanWorkflowState) -> dict:
             "current_stage": "validation_compliance",
             "human_review_required": True,
             "errors": [*state.get("errors", []), "validation_compliance: unexpected error"],
+        }
+
+
+def pipeline_orchestrator_node(state: LoanWorkflowState) -> dict:
+    """Deterministic workflow controller: reads the OCR/validation outputs
+    already in state and applies the Decision Matrix (missing docs / low
+    confidence / validation failure -> human review, all-clear -> continue).
+    No LLM calls, no DB access — only decides and records the decision.
+    """
+    logger.info(
+        "pipeline_orchestrator: loan_application_id=%s",
+        state["loan_application_id"],
+    )
+    finished_at = datetime.now(timezone.utc).isoformat()
+    try:
+        decision = run_pipeline_orchestrator(state)
+
+        return {
+            "current_stage": "pipeline_orchestrator",
+            "next_stage": "END",
+            "workflow_status": decision.workflow_status,
+            "decision": decision.decision,
+            "decision_reason": decision.decision_reason,
+            "human_review_required": state.get("human_review_required", False) or decision.decision != "continue",
+            "pipeline_completed": True,
+            "pipeline_finished_at": finished_at,
+            "agent_outputs": {
+                **state.get("agent_outputs", {}),
+                "pipeline_orchestrator": decision.model_dump(mode="json"),
+            },
+        }
+    except Exception:
+        logger.exception(
+            "pipeline_orchestrator_node failed for loan_application_id=%s",
+            state.get("loan_application_id"),
+        )
+        return {
+            "current_stage": "pipeline_orchestrator",
+            "next_stage": "END",
+            "workflow_status": "Human Review",
+            "decision": "human_review",
+            "decision_reason": "pipeline_orchestrator: unexpected error",
+            "human_review_required": True,
+            "pipeline_completed": True,
+            "pipeline_finished_at": finished_at,
+            "errors": [*state.get("errors", []), "pipeline_orchestrator: unexpected error"],
         }

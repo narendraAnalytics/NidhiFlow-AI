@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,8 @@ from app.models.enums import LoanStatus
 from app.models.loan_application import LoanApplication
 from app.models.loan_status_history import LoanStatusHistory
 from app.models.loan_validation_summary import LoanValidationSummary
+from app.models.workflow_event import WorkflowEvent
+from app.models.workflow_execution import WorkflowExecution
 from app.schemas.loan_application import LoanApplicationCreate, LoanApplicationSubmit
 from app.services.document_service import list_documents_for_loan
 
@@ -68,6 +71,14 @@ def run_loan_workflow(db: Session, loan: LoanApplication) -> LoanWorkflowState:
         "human_review_required": False,
         "agent_outputs": {},
         "errors": [],
+        "next_stage": None,
+        "workflow_status": "Draft",
+        "retry_count": 0,
+        "decision": None,
+        "decision_reason": None,
+        "pipeline_completed": False,
+        "pipeline_started_at": datetime.now(timezone.utc).isoformat(),
+        "pipeline_finished_at": None,
     }
     try:
         return loan_workflow_graph.invoke(initial_state)
@@ -78,6 +89,9 @@ def run_loan_workflow(db: Session, loan: LoanApplication) -> LoanWorkflowState:
         return {
             **initial_state,
             "current_stage": "workflow_error",
+            "workflow_status": "Human Review",
+            "decision": "human_review",
+            "human_review_required": True,
             "errors": [*initial_state["errors"], "workflow invocation failed"],
         }
 
@@ -133,6 +147,47 @@ def persist_validation_results(db: Session, loan: LoanApplication, workflow_resu
         db.commit()
 
 
+def persist_workflow_execution(
+    db: Session, loan: LoanApplication, workflow_result: LoanWorkflowState
+) -> WorkflowExecution:
+    orchestrator_output = workflow_result.get("agent_outputs", {}).get("pipeline_orchestrator", {})
+    started_at = workflow_result.get("pipeline_started_at")
+    finished_at = workflow_result.get("pipeline_finished_at")
+    duration = None
+    if started_at and finished_at:
+        try:
+            duration = (
+                datetime.fromisoformat(finished_at) - datetime.fromisoformat(started_at)
+            ).total_seconds()
+        except ValueError:
+            duration = None
+
+    execution = WorkflowExecution(
+        loan_application_id=loan.id,
+        workflow_status=workflow_result.get("workflow_status", "Human Review"),
+        current_stage=workflow_result.get("current_stage"),
+        completed_at=datetime.now(timezone.utc) if workflow_result.get("pipeline_completed") else None,
+        duration=duration,
+        retry_count=workflow_result.get("retry_count", 0),
+    )
+    db.add(execution)
+    db.flush()
+
+    for event in orchestrator_output.get("audit_trail", []):
+        db.add(
+            WorkflowEvent(
+                workflow_execution_id=execution.id,
+                stage=event["stage"],
+                event_type=event["event_type"],
+                message=event.get("message"),
+            )
+        )
+
+    db.commit()
+    db.refresh(execution)
+    return execution
+
+
 def submit_loan_application(
     db: Session, loan: LoanApplication, data: LoanApplicationSubmit
 ) -> LoanApplication:
@@ -155,12 +210,30 @@ def submit_loan_application(
 
     workflow_result = run_loan_workflow(db, loan)
     logger.info(
-        "loan workflow completed: loan_application_id=%s stage=%s human_review_required=%s errors=%s",
+        "loan workflow completed: loan_application_id=%s stage=%s decision=%s human_review_required=%s errors=%s",
         loan.id,
         workflow_result.get("current_stage"),
+        workflow_result.get("decision"),
         workflow_result.get("human_review_required"),
         workflow_result.get("errors"),
     )
     persist_document_ocr_results(db, workflow_result)
     persist_validation_results(db, loan, workflow_result)
+    persist_workflow_execution(db, loan, workflow_result)
+
+    next_status = (
+        LoanStatus.PROCESSING if workflow_result.get("decision") == "continue" else LoanStatus.HUMAN_REVIEW
+    )
+    pipeline_history = LoanStatusHistory(
+        loan_application_id=loan.id,
+        previous_status=loan.status,
+        new_status=next_status,
+        changed_by="pipeline_orchestrator",
+        notes=workflow_result.get("decision_reason"),
+    )
+    loan.status = next_status
+    db.add(pipeline_history)
+    db.commit()
+    db.refresh(loan)
+
     return loan
