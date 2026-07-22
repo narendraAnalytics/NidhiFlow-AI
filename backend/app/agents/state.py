@@ -7,6 +7,8 @@ class LoanWorkflowState(TypedDict):
     customer_id: uuid.UUID
     loan_status: str
     documents: list[dict]
+    customer_profile: dict
+    loan_details: dict
     current_stage: Optional[str]
     human_review_required: bool
     agent_outputs: dict

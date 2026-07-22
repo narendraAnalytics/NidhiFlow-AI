@@ -22,7 +22,7 @@ app/core/      config, startup, cross-cutting concerns
 app/models/    DB models
 app/schemas/   pydantic schemas
 app/services/  business logic
-app/agents/    Phase 2 Step 4: StateGraph (graph.py, nodes.py) + document_intelligence/ (Sarvam Vision OCR agent: sarvam_client.py, parser.py, schemas.py, agent.py) — OCR only, no LLM classification/extraction/routing/checkpointer yet
+app/agents/    Phase 2 Step 5: StateGraph (graph.py, nodes.py) + document_intelligence/ (Sarvam Vision OCR) + validation_compliance/ (Gemma 4 field extraction: gemini_client.py, prompts.py, schemas.py, agent.py — deterministic cross-checks in agent.py, no LLM for comparisons) — no conditional routing/checkpointer yet
 app/utils/     shared helpers
 ```
 
@@ -38,6 +38,8 @@ Don't echo raw exception text from DB/infra errors into HTTP responses (can leak
 
 ## Phase discipline
 
-We are in Phase 2 (`../phase2.txt`). Step 1 (loan/customer/document models + CRUD) is complete. Step 2 (document upload, intake submit, LangGraph state) is complete. Step 3 (minimal `StateGraph`: deterministic Intake Supervisor → Document Intelligence node, wired into `/loan/{id}/submit`) is complete. Step 4 (real Document Intelligence agent: Sarvam Vision OCR, `document_ocr_results` table) is complete — OCR only, no LLM classification/extraction, no specialized reasoning agents, no conditional routing, no checkpointer until later steps. No Docker until `../phase2.txt` marks the corresponding step as done.
+We are in Phase 2 (`../phase2.txt`). Step 1 (loan/customer/document models + CRUD) is complete. Step 2 (document upload, intake submit, LangGraph state) is complete. Step 3 (minimal `StateGraph`) is complete. Step 4 (real Document Intelligence agent: Sarvam Vision OCR, `document_ocr_results` table) is complete. Step 5 (Validation & Compliance agent: Gemma 4 field extraction + deterministic cross-checks, `document_validation_results` + `loan_validation_summaries` tables) is complete — no conditional routing, no checkpointer until later steps. No Docker until `../phase2.txt` marks the corresponding step as done.
 
-Sarvam OCR reads uploaded documents from Firebase Storage via `firebase-admin` + `credentials.ApplicationDefault()` (uses this machine's local gcloud ADC login — will need a service-account key once the backend is actually deployed). `SARVAM_API_KEY` blank-default means the document intelligence node skips gracefully (status `"skipped"`) rather than erroring when unset.
+Sarvam OCR reads uploaded documents from Firebase Storage via `firebase-admin` + `credentials.ApplicationDefault()` (uses this machine's local gcloud ADC login — will need a service-account key once the backend is actually deployed). `SARVAM_API_KEY`/`GEMINI_API_KEY` blank-default means the corresponding node skips gracefully (status `"skipped"`) rather than erroring when unset.
+
+Step 5 uses **Gemma 4** (`gemma-4-26b-a4b-it`) via the `google-genai` SDK, not Gemini — confirmed working with `response_schema` structured JSON output against this project's actual free-tier `GEMINI_API_KEY` (live-tested, not just documented). `GEMINI_MODEL` is env-overridable to swap to a Gemini model (e.g. `gemini-3.5-flash-lite`) if needed later. Extraction (semantic understanding) uses the LLM; cross-document comparison (PAN/Aadhaar consistency, EMI-vs-income) is deterministic Python in `validation_compliance/agent.py`, not a second LLM call.

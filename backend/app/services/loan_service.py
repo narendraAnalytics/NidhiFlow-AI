@@ -4,10 +4,13 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.agents import LoanWorkflowState, loan_workflow_graph
+from app.models.customer import Customer
 from app.models.document_ocr_result import DocumentOcrResult
+from app.models.document_validation_result import DocumentValidationResult
 from app.models.enums import LoanStatus
 from app.models.loan_application import LoanApplication
 from app.models.loan_status_history import LoanStatusHistory
+from app.models.loan_validation_summary import LoanValidationSummary
 from app.schemas.loan_application import LoanApplicationCreate, LoanApplicationSubmit
 from app.services.document_service import list_documents_for_loan
 
@@ -32,6 +35,8 @@ def get_loan_application(db: Session, loan_id: uuid.UUID) -> LoanApplication | N
 
 def run_loan_workflow(db: Session, loan: LoanApplication) -> LoanWorkflowState:
     documents = list_documents_for_loan(db, loan.id)
+    customer = db.query(Customer).filter(Customer.id == loan.customer_id).first()
+
     initial_state: LoanWorkflowState = {
         "loan_application_id": loan.id,
         "customer_id": loan.customer_id,
@@ -46,6 +51,19 @@ def run_loan_workflow(db: Session, loan: LoanApplication) -> LoanWorkflowState:
             }
             for doc in documents
         ],
+        "customer_profile": {
+            "pan": customer.pan,
+            "aadhaar": customer.aadhaar,
+            "full_name": customer.full_name,
+        }
+        if customer
+        else {},
+        "loan_details": {
+            "requested_amount": float(loan.requested_amount) if loan.requested_amount is not None else None,
+            "interest_rate": float(loan.interest_rate) if loan.interest_rate is not None else None,
+            "tenure": loan.tenure,
+            "monthly_income": float(loan.monthly_income) if loan.monthly_income is not None else None,
+        },
         "current_stage": None,
         "human_review_required": False,
         "agent_outputs": {},
@@ -83,6 +101,38 @@ def persist_document_ocr_results(db: Session, workflow_result: LoanWorkflowState
     db.commit()
 
 
+def persist_validation_results(db: Session, loan: LoanApplication, workflow_result: LoanWorkflowState) -> None:
+    validation = workflow_result.get("agent_outputs", {}).get("validation_compliance", {})
+    documents = validation.get("documents", [])
+    summary = validation.get("summary")
+
+    for result in documents:
+        db.add(
+            DocumentValidationResult(
+                document_id=result["document_id"],
+                document_type=result.get("document_type"),
+                extracted_fields=result.get("extracted_fields"),
+                processing_status=result["status"],
+                error_message=result.get("error"),
+            )
+        )
+
+    if summary:
+        db.add(
+            LoanValidationSummary(
+                loan_application_id=loan.id,
+                validation_status=summary["validation_status"],
+                confidence=summary["confidence"],
+                missing_documents=summary["missing_documents"],
+                field_mismatches=summary["field_mismatches"],
+                warnings=summary["warnings"],
+            )
+        )
+
+    if documents or summary:
+        db.commit()
+
+
 def submit_loan_application(
     db: Session, loan: LoanApplication, data: LoanApplicationSubmit
 ) -> LoanApplication:
@@ -112,4 +162,5 @@ def submit_loan_application(
         workflow_result.get("errors"),
     )
     persist_document_ocr_results(db, workflow_result)
+    persist_validation_results(db, loan, workflow_result)
     return loan

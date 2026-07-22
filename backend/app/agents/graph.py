@@ -2,7 +2,11 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import RetryPolicy
 
-from app.agents.nodes import document_intelligence_node, intake_supervisor_node
+from app.agents.nodes import (
+    document_intelligence_node,
+    intake_supervisor_node,
+    validation_compliance_node,
+)
 from app.agents.state import LoanWorkflowState
 
 
@@ -14,9 +18,15 @@ def build_loan_workflow_graph() -> CompiledStateGraph:
         document_intelligence_node,
         retry_policy=RetryPolicy(max_attempts=2),
     )
+    builder.add_node(
+        "validation_compliance",
+        validation_compliance_node,
+        retry_policy=RetryPolicy(max_attempts=2),
+    )
     builder.add_edge(START, "intake_supervisor")
     builder.add_edge("intake_supervisor", "document_intelligence")
-    builder.add_edge("document_intelligence", END)
+    builder.add_edge("document_intelligence", "validation_compliance")
+    builder.add_edge("validation_compliance", END)
     return builder.compile()
 
 
