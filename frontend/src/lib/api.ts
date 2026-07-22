@@ -8,6 +8,7 @@ import type {
   LoanDocumentResponse,
 } from "@/types/loan";
 import type { DashboardStatsResponse } from "@/types/dashboard";
+import type { LoanTimelineResponse } from "@/types/reporting";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -71,4 +72,26 @@ export function submitLoanApplication(
   idToken?: string,
 ) {
   return post<LoanApplicationResponse>(`/loan/${loanId}/submit`, data, idToken);
+}
+
+export async function getLoanTimeline(
+  loanId: string,
+  idToken?: string,
+): Promise<LoanTimelineResponse | null> {
+  const res = await fetch(`${API_BASE_URL}/reporting/loans/${loanId}/timeline`, {
+    method: "GET",
+    headers: {
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+    },
+  });
+
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || `Request to /reporting/loans/${loanId}/timeline failed with status ${res.status}`);
+  }
+
+  return res.json() as Promise<LoanTimelineResponse>;
 }

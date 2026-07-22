@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal, Optional
 
 from pydantic import BaseModel
@@ -13,8 +14,29 @@ class LoanTimelineEvent(BaseModel):
     metadata: dict
 
 
+class LoanSummary(BaseModel):
+    loan_type: str
+    requested_amount: Decimal
+    status: str
+    created_at: datetime
+
+
+class CustomerSummary(BaseModel):
+    full_name: str
+
+
+class ValidationSummary(BaseModel):
+    validation_status: str
+    confidence: float
+    missing_documents: list[str]
+    field_mismatches: list[str]
+
+
 class LoanTimelineResponse(BaseModel):
     loan_application_id: uuid.UUID
+    loan: LoanSummary
+    customer: CustomerSummary
+    validation_summary: Optional[ValidationSummary]
     events: list[LoanTimelineEvent]
 
 

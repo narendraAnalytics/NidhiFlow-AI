@@ -8,19 +8,23 @@ from app.models.customer import Customer
 from app.models.enums import LoanStatus
 from app.models.loan_application import LoanApplication
 from app.models.loan_status_history import LoanStatusHistory
+from app.models.loan_validation_summary import LoanValidationSummary
 from app.models.node_execution import NodeExecution
 from app.models.workflow_event import WorkflowEvent
 from app.models.workflow_execution import WorkflowExecution
 from app.schemas.reporting import (
     AuditTrailEntry,
     AuditTrailResponse,
+    CustomerSummary,
     HumanReviewAnalyticsResponse,
+    LoanSummary,
     LoanTimelineEvent,
     LoanTimelineResponse,
     NodeRetryStat,
     ProcessingTimelineResponse,
     RetryAnalyticsResponse,
     StageDuration,
+    ValidationSummary,
 )
 
 
@@ -29,8 +33,17 @@ class LoanNotFoundError(Exception):
 
 
 def get_loan_timeline(db: Session, loan_id: uuid.UUID) -> LoanTimelineResponse:
-    if db.query(LoanApplication).filter(LoanApplication.id == loan_id).first() is None:
+    loan = db.query(LoanApplication).filter(LoanApplication.id == loan_id).first()
+    if loan is None:
         raise LoanNotFoundError(f"Loan application {loan_id} not found")
+
+    customer = db.query(Customer).filter(Customer.id == loan.customer_id).first()
+    validation_summary_row = (
+        db.query(LoanValidationSummary)
+        .filter(LoanValidationSummary.loan_application_id == loan_id)
+        .order_by(LoanValidationSummary.created_at.desc())
+        .first()
+    )
 
     status_history = (
         db.query(LoanStatusHistory)
@@ -98,7 +111,26 @@ def get_loan_timeline(db: Session, loan_id: uuid.UUID) -> LoanTimelineResponse:
         )
 
     timeline.sort(key=lambda ev: ev.timestamp)
-    return LoanTimelineResponse(loan_application_id=loan_id, events=timeline)
+
+    return LoanTimelineResponse(
+        loan_application_id=loan_id,
+        loan=LoanSummary(
+            loan_type=loan.loan_type.value,
+            requested_amount=loan.requested_amount,
+            status=loan.status.value,
+            created_at=loan.created_at,
+        ),
+        customer=CustomerSummary(full_name=customer.full_name if customer else "Unknown"),
+        validation_summary=ValidationSummary(
+            validation_status=validation_summary_row.validation_status,
+            confidence=validation_summary_row.confidence,
+            missing_documents=validation_summary_row.missing_documents,
+            field_mismatches=validation_summary_row.field_mismatches,
+        )
+        if validation_summary_row
+        else None,
+        events=timeline,
+    )
 
 
 def get_audit_trail(

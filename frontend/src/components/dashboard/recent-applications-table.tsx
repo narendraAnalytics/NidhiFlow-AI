@@ -1,14 +1,7 @@
+import Link from "next/link";
 import type { RecentApplicationItem } from "@/types/dashboard";
-
-const STATUS_CHIP_STYLES: Record<string, string> = {
-  Draft: "bg-slate-100 text-slate-600",
-  "Documents Uploaded": "bg-[#3B82F6]/10 text-[#1d4ed8]",
-  Processing: "bg-[#F59E0B]/10 text-[#a16207]",
-  "Human Review": "bg-[#A855F7]/10 text-[#7e22ce]",
-  Approved: "bg-[#22C55E]/10 text-[#15803d]",
-  Rejected: "bg-[#EC4899]/10 text-[#be185d]",
-  Completed: "bg-[#14B8A6]/10 text-[#0f766e]",
-};
+import { getStatusChipStyle } from "@/lib/status-styles";
+import { formatCurrency } from "@/lib/format";
 
 function relativeTime(isoDate: string): string {
   const diffMs = Date.now() - new Date(isoDate).getTime();
@@ -17,14 +10,6 @@ function relativeTime(isoDate: string): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   const diffDays = Math.floor(diffHours / 24);
   return `${diffDays}d ago`;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(amount);
 }
 
 export function RecentApplicationsTable({
@@ -41,7 +26,11 @@ export function RecentApplicationsTable({
       ) : (
         <div className="flex flex-col divide-y divide-[#0f1b33]/8">
           {applications.map((app) => (
-            <div key={app.id} className="flex items-center gap-3 py-3">
+            <Link
+              key={app.id}
+              href={`/dashboard/loan/${app.id}`}
+              className="flex items-center gap-3 py-3 transition-colors hover:bg-[#0f1b33]/[0.03]"
+            >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#26D9FF] to-[#A855F7] text-[12px] font-bold text-white">
                 {app.customer_name.charAt(0).toUpperCase()}
               </div>
@@ -52,9 +41,7 @@ export function RecentApplicationsTable({
                 <div className="truncate text-[11.5px] text-[#5b6b8c]">{app.customer_name}</div>
               </div>
               <span
-                className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                  STATUS_CHIP_STYLES[app.status] ?? "bg-slate-100 text-slate-600"
-                }`}
+                className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${getStatusChipStyle(app.status)}`}
               >
                 {app.status}
               </span>
@@ -64,7 +51,7 @@ export function RecentApplicationsTable({
               <div className="w-16 shrink-0 text-right text-[11.5px] text-[#5b6b8c]">
                 {relativeTime(app.created_at)}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
