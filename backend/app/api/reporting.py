@@ -1,10 +1,11 @@
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.firebase_auth import get_current_firebase_user, require_owned_loan
 from app.schemas.reporting import (
     AuditTrailResponse,
     HumanReviewAnalyticsResponse,
@@ -12,6 +13,7 @@ from app.schemas.reporting import (
     ProcessingTimelineResponse,
     RetryAnalyticsResponse,
 )
+from app.services.report_service import build_loan_report_pdf
 from app.services.reporting_service import (
     LoanNotFoundError,
     get_audit_trail,
@@ -30,6 +32,21 @@ def get_loan_timeline_route(loan_id: uuid.UUID, db: Session = Depends(get_db)):
         return get_loan_timeline(db, loan_id)
     except LoanNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.get("/loans/{loan_id}/report.pdf")
+def get_loan_report_pdf_route(
+    loan_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_firebase_user),
+):
+    require_owned_loan(db, current_user, loan_id)
+    pdf_bytes = build_loan_report_pdf(db, loan_id)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="loan-report-{loan_id}.pdf"'},
+    )
 
 
 @router.get("/audit-trail", response_model=AuditTrailResponse)

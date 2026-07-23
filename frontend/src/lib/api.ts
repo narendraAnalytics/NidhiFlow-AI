@@ -58,6 +58,14 @@ export function createLoanApplication(data: LoanApplicationCreate, idToken?: str
   return post<LoanApplicationResponse>("/loan", data, idToken);
 }
 
+export function getActiveLoan(idToken: string) {
+  return get<LoanApplicationResponse | null>("/customers/me/active-loan", idToken);
+}
+
+export function getDocuments(loanId: string, idToken?: string) {
+  return get<LoanDocumentResponse[]>(`/documents/${loanId}`, idToken);
+}
+
 export function getDashboardStats(idToken?: string) {
   return get<DashboardStatsResponse>("/dashboard/stats", idToken);
 }
@@ -94,4 +102,18 @@ export async function getLoanTimeline(
   }
 
   return res.json() as Promise<LoanTimelineResponse>;
+}
+
+export async function downloadLoanReport(loanId: string, idToken: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE_URL}/reporting/loans/${loanId}/report.pdf`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || `Request to /reporting/loans/${loanId}/report.pdf failed with status ${res.status}`);
+  }
+
+  return res.blob();
 }

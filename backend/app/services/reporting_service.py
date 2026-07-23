@@ -103,6 +103,7 @@ def get_loan_timeline(db: Session, loan_id: uuid.UUID) -> LoanTimelineResponse:
                 title=f"{n.node_name}: {n.status}",
                 description=n.error_message,
                 metadata={
+                    "started_at": n.started_at.isoformat() if n.started_at else None,
                     "duration": n.duration,
                     "error_category": n.error_category,
                     "retry_attempt": n.retry_attempt,

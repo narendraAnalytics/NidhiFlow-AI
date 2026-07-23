@@ -16,11 +16,16 @@ class ExtractedDocumentFields(BaseModel):
     notes: Optional[str] = None
 
 
+TypeMatchStatus = Literal["match", "mismatch", "uncertain"]
+
+
 class DocumentValidationResult(BaseModel):
     document_id: str
     document_type: Optional[str] = None
     status: DocumentValidationStatus
     extracted_fields: Optional[ExtractedDocumentFields] = None
+    detected_document_type: Optional[str] = None
+    type_match_status: Optional[TypeMatchStatus] = None
     error: Optional[str] = None
 
 

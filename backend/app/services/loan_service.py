@@ -38,6 +38,15 @@ def get_loan_application(db: Session, loan_id: uuid.UUID) -> LoanApplication | N
     return db.query(LoanApplication).filter(LoanApplication.id == loan_id).first()
 
 
+def get_active_draft_loan(db: Session, customer_id: uuid.UUID) -> LoanApplication | None:
+    return (
+        db.query(LoanApplication)
+        .filter(LoanApplication.customer_id == customer_id, LoanApplication.status == LoanStatus.DRAFT)
+        .order_by(LoanApplication.created_at.desc())
+        .first()
+    )
+
+
 def run_loan_workflow(db: Session, loan: LoanApplication, retry_count: int = 0) -> LoanWorkflowState:
     documents = list_documents_for_loan(db, loan.id)
     customer = db.query(Customer).filter(Customer.id == loan.customer_id).first()
@@ -64,6 +73,7 @@ def run_loan_workflow(db: Session, loan: LoanApplication, retry_count: int = 0) 
         if customer
         else {},
         "loan_details": {
+            "loan_type": loan.loan_type.value,
             "requested_amount": float(loan.requested_amount) if loan.requested_amount is not None else None,
             "interest_rate": float(loan.interest_rate) if loan.interest_rate is not None else None,
             "tenure": loan.tenure,
@@ -165,6 +175,8 @@ def persist_validation_results(db: Session, loan: LoanApplication, workflow_resu
                 document_id=result["document_id"],
                 document_type=result.get("document_type"),
                 extracted_fields=result.get("extracted_fields"),
+                detected_document_type=result.get("detected_document_type"),
+                type_match_status=result.get("type_match_status"),
                 processing_status=result["status"],
                 error_message=result.get("error"),
             )

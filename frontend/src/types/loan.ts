@@ -25,6 +25,31 @@ export type DocumentType =
   | "Loan Application Form"
   | "Income Proof"
   | "Address Proof"
+  | "Other"
+  | "Form 16"
+  | "Sale Agreement"
+  | "Property Valuation Report"
+  | "Property Tax Receipt"
+  | "Encumbrance Certificate"
+  | "Occupancy Certificate"
+  | "Sale Deed"
+  | "Employee ID"
+  | "Udyam Certificate"
+  | "Shop License"
+  | "Partnership Deed"
+  | "MOA"
+  | "AOA"
+  | "CIN Certificate"
+  | "Balance Sheet"
+  | "Profit & Loss Statement"
+  | "GST Returns"
+  | "Audit Report";
+
+export type DocumentCategory =
+  | "Identity Proof"
+  | "Income Proof"
+  | "Property Documents"
+  | "Business Documents"
   | "Other";
 
 export type DocumentStatus = "Uploaded" | "Verified" | "Rejected";

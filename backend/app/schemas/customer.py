@@ -20,6 +20,7 @@ class CustomerResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    firebase_uid: Optional[str] = None
     full_name: str
     email: EmailStr
     phone: str

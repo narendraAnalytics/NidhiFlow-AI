@@ -20,6 +20,8 @@ class DocumentValidationResult(Base):
     )
     document_type = Column(String, nullable=True)
     extracted_fields = Column(JSONB, nullable=True)
+    detected_document_type = Column(String, nullable=True)
+    type_match_status = Column(String, nullable=True)
     processing_status = Column(String, nullable=False)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

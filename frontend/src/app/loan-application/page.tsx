@@ -17,8 +17,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/auth-context";
-import { createCustomer, createLoanApplication } from "@/lib/api";
+import { createCustomer, createLoanApplication, getActiveLoan, getDocuments, getLoanTimeline } from "@/lib/api";
 import { PAN_REGEX, isValidAadhaar } from "@/lib/validators";
+import type { LoanDocumentResponse, LoanType } from "@/types/loan";
+import type { LoanTimelineResponse } from "@/types/reporting";
+import { LoanSummaryCard } from "@/components/loan/loan-summary-card";
+import { AgentPipeline } from "@/components/loan/agent-pipeline";
+import { LoanTimeline } from "@/components/loan/loan-timeline";
+import { DownloadReportButton } from "@/components/loan/download-report-button";
 import { DocumentUploadSection } from "./document-upload-section";
 
 const LOGO_URL =
@@ -246,12 +252,58 @@ export default function LoanApplicationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [phase, setPhase] = useState<Phase>("form");
   const [loanId, setLoanId] = useState<string | null>(null);
+  const [resumeLoanType, setResumeLoanType] = useState<LoanType | null>(null);
+  const [resumedDocuments, setResumedDocuments] = useState<LoanDocumentResponse[]>([]);
+  const [checkingResume, setCheckingResume] = useState(true);
+  const [resultTimeline, setResultTimeline] = useState<LoanTimelineResponse | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/auth");
     }
   }, [loading, user, router]);
+
+  useEffect(() => {
+    if (loading || !user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const activeLoan = await getActiveLoan(idToken);
+        if (cancelled || !activeLoan) return;
+        const documents = await getDocuments(activeLoan.id, idToken);
+        if (cancelled) return;
+        setLoanId(activeLoan.id);
+        setResumeLoanType(activeLoan.loan_type);
+        setResumedDocuments(documents);
+        setPhase("documents");
+      } catch {
+        // No resumable application — fall through to the blank form.
+      } finally {
+        if (!cancelled) setCheckingResume(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user]);
+
+  useEffect(() => {
+    if (phase !== "done" || !loanId || !user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const data = await getLoanTimeline(loanId, idToken);
+        if (!cancelled) setResultTimeline(data);
+      } catch {
+        // Results will just show as unavailable inline; user can still view via the dashboard.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, loanId, user]);
 
   const {
     register,
@@ -268,7 +320,7 @@ export default function LoanApplicationPage() {
   const isBusiness = selectedLoanType === "Business";
   const isHome = !isPersonal && !isBusiness;
 
-  if (loading || !user) {
+  if (loading || !user || checkingResume) {
     return null;
   }
 
@@ -426,17 +478,50 @@ export default function LoanApplicationPage() {
           <StepIndicator phase={phase} />
 
           {phase === "documents" && loanId && (
-            <DocumentUploadSection loanId={loanId} onSubmitted={() => setPhase("done")} />
+            <DocumentUploadSection
+              loanId={loanId}
+              loanType={resumeLoanType ?? selectedLoanType}
+              onSubmitted={() => setPhase("done")}
+              initialDocuments={resumedDocuments}
+            />
           )}
 
-          {phase === "done" && (
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard")}
-              className="nf-cta inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] py-3.5 text-[15px] font-extrabold text-white shadow-[0_10px_30px_rgba(59,130,246,0.4)] transition-all"
-            >
-              Go to dashboard
-            </button>
+          {phase === "done" && loanId && (
+            <div className="flex flex-col gap-5">
+              {resultTimeline ? (
+                <>
+                  <LoanSummaryCard
+                    loan={resultTimeline.loan}
+                    customer={resultTimeline.customer}
+                    validationSummary={resultTimeline.validation_summary}
+                    actions={<DownloadReportButton loanId={loanId} />}
+                  />
+                  <AgentPipeline events={resultTimeline.events} />
+                  <LoanTimeline events={resultTimeline.events} />
+                </>
+              ) : (
+                <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#e2e8f5] bg-[#f8fbff]/60 p-6 text-[13.5px] font-semibold text-[#5b6b8c]">
+                  <Loader2 size={16} className="animate-spin" />
+                  Loading results…
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Link
+                  href={`/dashboard/loan/${loanId}`}
+                  className="flex-1 rounded-2xl border border-[#e2e8f5] bg-white py-3 text-center text-[13.5px] font-bold text-[#0f1b33] transition-colors hover:bg-[#f8fbff]"
+                >
+                  View full details
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard")}
+                  className="nf-cta flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] py-3 text-[13.5px] font-extrabold text-white shadow-[0_10px_30px_rgba(59,130,246,0.4)] transition-all"
+                >
+                  Back to dashboard
+                </button>
+              </div>
+            </div>
           )}
 
           {phase === "form" && (

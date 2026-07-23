@@ -6,41 +6,86 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/auth-context";
 import { createDocument, submitLoanApplication } from "@/lib/api";
 import { uploadLoanDocument } from "@/lib/storage";
-import type { DocumentType, LoanDocumentResponse } from "@/types/loan";
+import type { DocumentCategory, DocumentType, LoanDocumentResponse, LoanType } from "@/types/loan";
+import { SubmitProgressStepper, type SubmitOutcome } from "@/components/loan/submit-progress-stepper";
 import { inputClass, labelClass } from "./page";
 
-const DOCUMENT_TYPES: DocumentType[] = [
-  "PAN Card",
-  "Aadhaar",
-  "Salary Slip",
-  "Bank Statement",
-  "ITR",
-  "Property Papers",
-  "Business Registration",
-  "GST Certificate",
-  "Passport",
-  "Driving Licence",
-  "Photo",
-  "Signature",
-  "Loan Application Form",
-  "Income Proof",
-  "Address Proof",
-  "Other",
-];
+const DOCUMENT_CHECKLIST_BY_LOAN_TYPE: Record<
+  LoanType,
+  { category: DocumentCategory; type: DocumentType }[]
+> = {
+  Home: [
+    { category: "Identity Proof", type: "PAN Card" },
+    { category: "Identity Proof", type: "Aadhaar" },
+    { category: "Income Proof", type: "Form 16" },
+    { category: "Income Proof", type: "Salary Slip" },
+    { category: "Income Proof", type: "Bank Statement" },
+    { category: "Property Documents", type: "Sale Agreement" },
+    { category: "Property Documents", type: "Property Valuation Report" },
+    { category: "Property Documents", type: "Property Tax Receipt" },
+    { category: "Property Documents", type: "Encumbrance Certificate" },
+    { category: "Property Documents", type: "Occupancy Certificate" },
+    { category: "Property Documents", type: "Sale Deed" },
+  ],
+  Personal: [
+    { category: "Identity Proof", type: "PAN Card" },
+    { category: "Identity Proof", type: "Aadhaar" },
+    { category: "Income Proof", type: "Form 16" },
+    { category: "Income Proof", type: "Salary Slip" },
+    { category: "Income Proof", type: "Bank Statement" },
+    { category: "Income Proof", type: "ITR" },
+    { category: "Identity Proof", type: "Employee ID" },
+  ],
+  Business: [
+    { category: "Identity Proof", type: "PAN Card" },
+    { category: "Identity Proof", type: "Aadhaar" },
+    { category: "Business Documents", type: "GST Certificate" },
+    { category: "Business Documents", type: "Udyam Certificate" },
+    { category: "Business Documents", type: "Shop License" },
+    { category: "Business Documents", type: "Partnership Deed" },
+    { category: "Business Documents", type: "MOA" },
+    { category: "Business Documents", type: "AOA" },
+    { category: "Business Documents", type: "CIN Certificate" },
+    { category: "Income Proof", type: "Bank Statement" },
+    { category: "Income Proof", type: "ITR" },
+    { category: "Business Documents", type: "Balance Sheet" },
+    { category: "Business Documents", type: "Profit & Loss Statement" },
+    { category: "Business Documents", type: "GST Returns" },
+    { category: "Business Documents", type: "Audit Report" },
+  ],
+};
+
+const REQUIRED_DOCUMENT_TYPES_BY_LOAN_TYPE: Record<LoanType, DocumentType[]> = {
+  Home: ["PAN Card", "Aadhaar", "Sale Deed"],
+  Personal: ["PAN Card", "Aadhaar", "Salary Slip"],
+  Business: ["PAN Card", "Aadhaar", "GST Certificate"],
+};
 
 export function DocumentUploadSection({
   loanId,
+  loanType,
   onSubmitted,
+  initialDocuments = [],
 }: {
   loanId: string;
+  loanType: LoanType;
   onSubmitted: () => void;
+  initialDocuments?: LoanDocumentResponse[];
 }) {
   const { user } = useAuth();
-  const [documentType, setDocumentType] = useState<DocumentType>("PAN Card");
+  const checklist = DOCUMENT_CHECKLIST_BY_LOAN_TYPE[loanType];
+  const requiredTypes = REQUIRED_DOCUMENT_TYPES_BY_LOAN_TYPE[loanType];
+  const [documentType, setDocumentType] = useState<DocumentType>(checklist[0].type);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [documents, setDocuments] = useState<LoanDocumentResponse[]>([]);
+  const [submitOutcome, setSubmitOutcome] = useState<SubmitOutcome>(null);
+  const [documents, setDocuments] = useState<LoanDocumentResponse[]>(initialDocuments);
+
+  const uploadedTypes = new Set(documents.map((d) => d.document_type));
+  const requiredUploadedCount = requiredTypes.filter((t) => uploadedTypes.has(t)).length;
+
+  const categories = Array.from(new Set(checklist.map((c) => c.category)));
 
   const onAddDocument = async () => {
     if (!file || !user) return;
@@ -71,16 +116,24 @@ export function DocumentUploadSection({
   const onSubmitApplication = async () => {
     if (!user) return;
     setSubmitting(true);
+    setSubmitOutcome(null);
     try {
       const idToken = await user.getIdToken();
-      await submitLoanApplication(
+      const result = await submitLoanApplication(
         loanId,
         { changed_by: user.email ?? user.uid },
         idToken,
       );
-      toast.success("Application submitted for processing.");
-      onSubmitted();
+      const outcome: SubmitOutcome = result.status === "Human Review" ? "human_review" : "processing";
+      setSubmitOutcome(outcome);
+      toast.success(
+        outcome === "human_review"
+          ? "Application flagged for human review."
+          : "Application submitted for processing.",
+      );
+      setTimeout(onSubmitted, 1500);
     } catch {
+      setSubmitOutcome("failed");
       toast.error("Submission failed. Please try again.");
     } finally {
       setSubmitting(false);
@@ -90,7 +143,12 @@ export function DocumentUploadSection({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="mb-3 text-[14px] font-bold text-[#0f1b33]">Upload documents</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-[14px] font-bold text-[#0f1b33]">Upload documents</h2>
+          <span className="text-[12.5px] font-semibold text-[#5b6b8c]">
+            {requiredUploadedCount} of {requiredTypes.length} required documents uploaded
+          </span>
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <div>
             <label className={labelClass}>Document type</label>
@@ -100,10 +158,16 @@ export function DocumentUploadSection({
               disabled={uploading}
               className={inputClass}
             >
-              {DOCUMENT_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
+              {categories.map((category) => (
+                <optgroup key={category} label={category}>
+                  {checklist
+                    .filter((c) => c.category === category)
+                    .map(({ type }) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                </optgroup>
               ))}
             </select>
           </div>
@@ -140,21 +204,28 @@ export function DocumentUploadSection({
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={onSubmitApplication}
-        disabled={documents.length === 0 || submitting}
-        className="nf-cta mt-2 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] py-3.5 text-[15px] font-extrabold text-white shadow-[0_10px_30px_rgba(59,130,246,0.4)] transition-all disabled:cursor-not-allowed disabled:opacity-70"
-      >
-        {submitting ? (
-          <Loader2 size={18} className="animate-spin" />
-        ) : (
-          <>
-            Submit application
-            <Send size={17} />
-          </>
-        )}
-      </button>
+      {(submitting || submitOutcome !== null) && <SubmitProgressStepper outcome={submitOutcome} />}
+
+      {submitOutcome !== "failed" ? (
+        <button
+          type="button"
+          onClick={onSubmitApplication}
+          disabled={documents.length === 0 || submitting || submitOutcome !== null}
+          className="nf-cta mt-2 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] py-3.5 text-[15px] font-extrabold text-white shadow-[0_10px_30px_rgba(59,130,246,0.4)] transition-all disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          Submit application
+          <Send size={17} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setSubmitOutcome(null)}
+          className="nf-cta mt-2 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#26D9FF] via-[#3B82F6] to-[#A855F7] py-3.5 text-[15px] font-extrabold text-white shadow-[0_10px_30px_rgba(59,130,246,0.4)] transition-all"
+        >
+          Try again
+          <Send size={17} />
+        </button>
+      )}
     </div>
   );
 }

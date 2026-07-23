@@ -42,7 +42,7 @@ Don't echo raw exception text from DB/infra errors into HTTP responses (can leak
 
 `uvicorn --reload`'s file-watcher here does not reliably pick up edits to `app/models/` or `app/schemas/` — confirmed twice (new columns/fields silently missing from API responses after editing). After any model/schema change, manually restart: find the python PIDs (`Get-Process python`), kill them, then re-run `uv run uvicorn main:app --reload`. Don't trust a live API test after such an edit without doing this first.
 
-If `uv run <cmd>` fails with `Access is denied` on a `.venv/Lib/site-packages/...` file, the running server has it locked — use `./.venv/Scripts/python.exe -m <module>` (e.g. `-m alembic ...`) directly instead, which skips `uv sync`.
+If `uv run <cmd>` fails with `Access is denied` on a `.venv/Lib/site-packages/...` file, the running server has it locked — use `./.venv/Scripts/python.exe -m <module>` (e.g. `-m alembic ...`, `-m pytest -q`) directly instead, which skips `uv sync`.
 
 ## Phase discipline
 
@@ -54,7 +54,17 @@ Step 8 (Reporting & Audit Dashboard, backend only — `app/services/reporting_se
 
 Step 8b (frontend, in progress) has the loan detail & timeline page done (`frontend/src/app/dashboard/loan/[id]/`); human review queue, audit trail viewer, and monitoring dashboard upgrade are still pending.
 
-**Known backlog item:** no endpoint in `app/api/` has authentication (confirmed via grep — zero `Depends(get_current_user)` or equivalent anywhere in the backend). Flagged by an automated security review during Step 8b; user explicitly decided to track as backlog rather than block feature work. `/reporting/*` in particular returns customer names and audit notes with no access control. Needs a real fix (Firebase ID token verification dependency, scoped queries) before any real deployment.
+Backend auth exists: `app/core/firebase_auth.py` verifies Firebase ID tokens (`get_current_firebase_user`) and enforces per-user ownership (`require_owned_customer_id`, `require_owned_loan`) on customer/loan/document routes. `Customer.firebase_uid` links a DB row to the Firebase user. `/reporting/*` (except the PDF report route) and `GET /loan/{id}` are still anonymous — extend the same dependency if protecting them later.
+
+## Firebase Admin: single shared init
+
+`firebase_admin.initialize_app()` can only run once per process (default app) — calling it from a second module throws `ValueError: The default Firebase app already exists`, and this exact bug once made OCR crash with a misleading `OCR_ERROR`. Any code needing Firebase Admin (Storage, Auth token verification, etc.) must call `app.core.firebase_app.get_firebase_app()` rather than initializing its own app.
+
+## Native Postgres enum columns store the Python member NAME, not `.value`
+
+`sa.Enum(SomeEnum, name="...")` binds using the enum member's `.name` (e.g. `SALE_AGREEMENT`), not its `.value` string (e.g. `"Sale Agreement"`) — confirmed the hard way when a migration added new `DocumentType` labels using `.value` strings and every insert of a new type failed. Alembic autogenerate does not detect new enum members at all; add them by hand: `op.execute("ALTER TYPE <enum_name> ADD VALUE IF NOT EXISTS '<MEMBER_NAME>'")`, using the member name.
+
+PDF generation uses `reportlab` (Platypus), not WeasyPrint/xhtml2pdf — those need GTK/Pango system libraries that are painful to install on Windows dev machines. `app/services/report_service.py` is the pattern to follow for new PDF reports.
 
 Sarvam OCR reads uploaded documents from Firebase Storage via `firebase-admin` + `credentials.ApplicationDefault()` (uses this machine's local gcloud ADC login — will need a service-account key once the backend is actually deployed). `SARVAM_API_KEY`/`GEMINI_API_KEY` blank-default means the corresponding node skips gracefully (status `"skipped"`) rather than erroring when unset.
 

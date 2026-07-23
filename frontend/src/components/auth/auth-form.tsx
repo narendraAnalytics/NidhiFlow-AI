@@ -10,6 +10,18 @@ import { ArrowRight, Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { friendlyAuthError, useAuth } from "@/contexts/auth-context";
+import { getActiveLoan } from "@/lib/api";
+import type { User } from "firebase/auth";
+
+async function redirectAfterSignIn(user: User, router: ReturnType<typeof useRouter>) {
+  try {
+    const idToken = await user.getIdToken();
+    const activeLoan = await getActiveLoan(idToken);
+    router.replace(activeLoan ? "/loan-application" : "/");
+  } catch {
+    router.replace("/");
+  }
+}
 
 const authSchema = z.object({
   email: z.email("Enter a valid email address").min(1, "Email is required"),
@@ -40,7 +52,7 @@ export function AuthForm() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/");
+      redirectAfterSignIn(user, router);
     }
   }, [loading, user, router]);
 
@@ -61,8 +73,8 @@ export function AuthForm() {
         client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
         callback: async (response) => {
           try {
-            await signInWithGoogleCredential(response.credential);
-            router.replace("/");
+            const signedInUser = await signInWithGoogleCredential(response.credential);
+            await redirectAfterSignIn(signedInUser, router);
           } catch (error) {
             toast.error(friendlyAuthError(error));
           }
@@ -94,12 +106,11 @@ export function AuthForm() {
   const onSubmit = async (values: AuthFormValues) => {
     setSubmitting(true);
     try {
-      if (mode === "signin") {
-        await signInEmail(values.email, values.password);
-      } else {
-        await signUpEmail(values.email, values.password);
-      }
-      router.replace("/");
+      const signedInUser =
+        mode === "signin"
+          ? await signInEmail(values.email, values.password)
+          : await signUpEmail(values.email, values.password);
+      await redirectAfterSignIn(signedInUser, router);
     } catch (error) {
       toast.error(friendlyAuthError(error));
     } finally {

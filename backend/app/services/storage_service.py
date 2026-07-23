@@ -1,30 +1,13 @@
 import re
-import threading
 from urllib.parse import unquote, urlparse
 
-import firebase_admin
-from firebase_admin import credentials, storage
+from firebase_admin import storage
 
-from app.core.config import FIREBASE_STORAGE_BUCKET
-
-_app = None
-_app_lock = threading.Lock()
+from app.core.firebase_app import get_firebase_app
 
 
 class StorageFetchError(Exception):
     pass
-
-
-def _get_app():
-    global _app
-    if _app is None:
-        with _app_lock:
-            if _app is None:
-                _app = firebase_admin.initialize_app(
-                    credentials.ApplicationDefault(),
-                    {"storageBucket": FIREBASE_STORAGE_BUCKET},
-                )
-    return _app
 
 
 def _blob_path_from_url(firebase_url: str) -> str:
@@ -36,7 +19,7 @@ def _blob_path_from_url(firebase_url: str) -> str:
 
 
 def get_file_bytes(firebase_url: str) -> bytes:
-    _get_app()
+    get_firebase_app()
     path = _blob_path_from_url(firebase_url)
     try:
         bucket = storage.bucket()

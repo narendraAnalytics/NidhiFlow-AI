@@ -12,6 +12,7 @@ class Customer(Base):
     __tablename__ = "customers"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    firebase_uid = Column(String, unique=True, nullable=True, index=True)
     full_name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False, index=True)
     phone = Column(String, nullable=False)

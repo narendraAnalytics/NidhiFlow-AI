@@ -6,13 +6,15 @@ from app.agents.validation_compliance.schemas import (
     DocumentValidationResult,
     ExtractedDocumentFields,
     LoanValidationSummary,
+    TypeMatchStatus,
 )
 from app.core.config import GEMINI_API_KEY, GEMINI_USE_VERTEX
+from app.core.document_checklist import REQUIRED_DOCUMENT_TYPES
+from app.models.enums import LoanType
 
 logger = logging.getLogger(__name__)
 
-REQUIRED_DOCUMENT_TYPES = {"PAN Card", "Aadhaar"}
-INCOME_BEARING_DOCUMENT_TYPES = {"Salary Slip", "ITR", "Income Proof"}
+INCOME_BEARING_DOCUMENT_TYPES = {"Salary Slip", "ITR", "Income Proof", "Form 16"}
 
 
 def _normalize(value: str | None) -> str | None:
@@ -21,9 +23,31 @@ def _normalize(value: str | None) -> str | None:
     return " ".join(value.strip().lower().split())
 
 
-def _extract_one(
+def _check_type_match(document_type: str | None, detected_document_type: str | None) -> TypeMatchStatus:
+    """Compares the declared document_type against the LLM's free-text
+    detected_document_type guess. Substring/keyword match rather than
+    exact equality since the LLM answers in prose, not enum values.
+    """
+    declared = _normalize(document_type)
+    detected = _normalize(detected_document_type)
+    if not declared or not detected:
+        return "uncertain"
+    if declared in detected or detected in declared:
+        return "match"
+    declared_words = set(declared.split())
+    detected_words = set(detected.split())
+    if declared_words & detected_words:
+        return "match"
+    return "mismatch"
+
+
+def _document_validation_step(
     client: GeminiClient, document: dict, ocr_result: dict | None
 ) -> DocumentValidationResult:
+    """Document Validator + Entity Extractor stage (combined, one LLM call):
+    extracts structured fields from the OCR'd document AND checks whether
+    the declared document_type actually matches what the LLM detected.
+    """
     document_id = document.get("id")
     document_type = document.get("document_type")
 
@@ -42,6 +66,8 @@ def _extract_one(
             document_type=document_type,
             status="parsed",
             extracted_fields=fields,
+            detected_document_type=fields.detected_document_type,
+            type_match_status=_check_type_match(document_type, fields.detected_document_type),
         )
     except GeminiValidationError as exc:
         logger.exception("Gemini extraction failed for document_id=%s", document_id)
@@ -60,12 +86,17 @@ def _compute_emi(principal: Decimal, annual_interest_rate: Decimal, tenure_month
     return principal * monthly_rate * factor / (factor - 1)
 
 
-def _cross_check(
+def _cross_document_validation_step(
     results: list[DocumentValidationResult],
     documents: list[dict],
     customer_profile: dict,
     loan_details: dict,
 ) -> LoanValidationSummary:
+    """Cross-Document Validator stage: no LLM — deterministic checks across
+    all documents (PAN/Aadhaar/name/EMI consistency, required-document
+    presence for the loan's type, and rolls up any per-document
+    declared-vs-detected type mismatches flagged by the validation step).
+    """
     warnings: list[str] = []
     field_mismatches: list[str] = []
     checks_performed = 0
@@ -76,9 +107,25 @@ def _cross_check(
             warnings.append(f"Extraction failed for {result.document_type or result.document_id}: {result.error}")
         elif result.status == "skipped":
             warnings.append(f"Extraction skipped for {result.document_type or result.document_id}: {result.error}")
+        elif result.type_match_status == "mismatch":
+            checks_performed += 1
+            mismatches += 1
+            field_mismatches.append(
+                f"Document declared as '{result.document_type}' but appears to be "
+                f"'{result.detected_document_type}' (type mismatch)"
+            )
+        elif result.type_match_status == "match":
+            checks_performed += 1
+
+    loan_type_raw = loan_details.get("loan_type")
+    try:
+        loan_type = LoanType(loan_type_raw) if loan_type_raw else None
+    except ValueError:
+        loan_type = None
+    required_types = {t.value for t in REQUIRED_DOCUMENT_TYPES[loan_type]} if loan_type else set()
 
     present_types = {doc.get("document_type") for doc in documents}
-    missing_documents = sorted(t for t in REQUIRED_DOCUMENT_TYPES if t not in present_types)
+    missing_documents = sorted(t for t in required_types if t not in present_types)
 
     extracted_by_type: dict[str, ExtractedDocumentFields] = {
         result.document_type: result.extracted_fields
@@ -211,9 +258,9 @@ def run(
     else:
         client = GeminiClient()
         results = [
-            _extract_one(client, document, ocr_by_document_id.get(document.get("id")))
+            _document_validation_step(client, document, ocr_by_document_id.get(document.get("id")))
             for document in documents
         ]
 
-    summary = _cross_check(results, documents, customer_profile, loan_details)
+    summary = _cross_document_validation_step(results, documents, customer_profile, loan_details)
     return results, summary
