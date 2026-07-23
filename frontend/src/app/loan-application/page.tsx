@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/auth-context";
 import { createCustomer, createLoanApplication } from "@/lib/api";
+import { PAN_REGEX, isValidAadhaar } from "@/lib/validators";
 import { DocumentUploadSection } from "./document-upload-section";
 
 const LOGO_URL =
@@ -29,8 +30,11 @@ const loanApplicationSchema = z.object({
   full_name: z.string().min(1, "Full name is required"),
   email: z.email("Enter a valid email address").min(1, "Email is required"),
   phone: z.string().min(1, "Phone is required"),
-  pan: z.string().min(1, "PAN is required"),
-  aadhaar: z.string().min(1, "Aadhaar is required"),
+  pan: z.string().regex(PAN_REGEX, "Enter a valid PAN (e.g. ABCDE1234F)"),
+  aadhaar: z
+    .string()
+    .length(12, "Aadhaar must be 12 digits")
+    .refine(isValidAadhaar, "Enter a valid Aadhaar number"),
   address: z.string().optional(),
   age: z.string().optional(),
   city: z.string().optional(),
@@ -51,6 +55,28 @@ const loanApplicationSchema = z.object({
   existing_loan_outstanding: z.string().optional(),
   bank_name: z.string().optional(),
   monthly_household_expenses: z.string().optional(),
+  business_name: z.string().optional(),
+  business_type: z.string().optional(),
+  industry: z.string().optional(),
+  business_vintage_years: z.string().optional(),
+  annual_turnover: z.string().optional(),
+  monthly_business_revenue: z.string().optional(),
+  monthly_net_profit: z.string().optional(),
+  gst_number: z.string().optional(),
+  udyam_registration_number: z.string().optional(),
+  cin_llpin: z.string().optional(),
+  number_of_employees: z.string().optional(),
+  existing_business_loan_outstanding: z.string().optional(),
+  business_bank_name: z.string().optional(),
+  collateral_required: z.string().optional(),
+  collateral_type: z.string().optional(),
+  collateral_value: z.string().optional(),
+  occupation_designation: z.string().optional(),
+  total_work_experience: z.string().optional(),
+  experience_current_employer: z.string().optional(),
+  property_type: z.string().optional(),
+  property_status: z.string().optional(),
+  builder_developer_name: z.string().optional(),
 });
 
 type LoanApplicationFormValues = z.infer<typeof loanApplicationSchema>;
@@ -75,6 +101,89 @@ const PERSONAL_LOAN_PURPOSES = [
   "Personal Expenses",
   "Other",
 ];
+
+const BUSINESS_LOAN_PURPOSES = [
+  "Working Capital",
+  "Business Expansion",
+  "Machinery Purchase",
+  "Equipment Purchase",
+  "Inventory Purchase",
+  "Office Setup",
+  "Cash Flow Management",
+  "GST/Tax Payment",
+  "Debt Consolidation",
+  "Purchase Commercial Property",
+  "Franchise Purchase",
+  "Other",
+];
+
+const BUSINESS_TYPES = [
+  "Sole Proprietorship",
+  "Partnership Firm",
+  "LLP",
+  "Private Limited Company",
+  "Public Limited Company",
+  "One Person Company (OPC)",
+  "Trust",
+  "Society",
+];
+
+const INDUSTRIES = [
+  "Manufacturing",
+  "Retail",
+  "Wholesale",
+  "Trading",
+  "Construction",
+  "Information Technology",
+  "Healthcare",
+  "Education",
+  "Hospitality",
+  "Logistics",
+  "Agriculture",
+  "Textile",
+  "Food Processing",
+  "Professional Services",
+  "Other",
+];
+
+const OCCUPATION_DESIGNATIONS = [
+  "Doctor",
+  "Engineer",
+  "Chartered Accountant (CA)",
+  "Lawyer",
+  "Architect",
+  "Government Officer",
+  "Private Sector Employee",
+  "Public Sector Employee",
+  "Business Owner / Proprietor",
+  "Trader / Contractor / Commission Agent",
+  "Teacher / Professor",
+  "Consultant",
+  "Other",
+];
+
+const TOTAL_WORK_EXPERIENCE_OPTIONS = [
+  "Less than 1 year",
+  "1-2 years",
+  "2-5 years",
+  "5-10 years",
+  "10-15 years",
+  "15-20 years",
+  "More than 20 years",
+];
+
+const CURRENT_EMPLOYER_EXPERIENCE_OPTIONS = [
+  "Less than 1 year",
+  "1-2 years",
+  "2-3 years",
+  "3-5 years",
+  "5-10 years",
+  "More than 10 years",
+];
+
+const PROPERTY_TYPES = ["Apartment", "Independent House", "Villa", "Plot + Construction"];
+
+const PROPERTY_STATUSES = ["Ready to Move", "Under Construction", "Resale"];
 
 export const inputClass =
   "w-full rounded-xl border border-[#e2e8f5] bg-white py-3 px-4 text-[14.5px] text-[#0f1b33] placeholder:text-[#9aa8c2] outline-none transition-colors focus:border-[#3B82F6] focus:ring-2 focus:ring-[#3B82F6]/20 disabled:opacity-60 disabled:bg-[#f8fbff]";
@@ -156,6 +265,8 @@ export default function LoanApplicationPage() {
 
   const selectedLoanType = watch("loan_type");
   const isPersonal = selectedLoanType === "Personal";
+  const isBusiness = selectedLoanType === "Business";
+  const isHome = !isPersonal && !isBusiness;
 
   if (loading || !user) {
     return null;
@@ -179,6 +290,8 @@ export default function LoanApplicationPage() {
         idToken,
       );
       const isPersonalLoan = values.loan_type === "Personal";
+      const isBusinessLoan = values.loan_type === "Business";
+      const isHomeLoan = !isPersonalLoan && !isBusinessLoan;
       const loanApplication = await createLoanApplication(
         {
           customer_id: customer.id,
@@ -194,9 +307,13 @@ export default function LoanApplicationPage() {
           credit_score: values.credit_score ? Number(values.credit_score) : undefined,
           existing_emi: values.existing_emi ? Number(values.existing_emi) : undefined,
           property_value:
-            !isPersonalLoan && values.property_value ? Number(values.property_value) : undefined,
+            !isPersonalLoan && !isBusinessLoan && values.property_value
+              ? Number(values.property_value)
+              : undefined,
           down_payment:
-            !isPersonalLoan && values.down_payment ? Number(values.down_payment) : undefined,
+            !isPersonalLoan && !isBusinessLoan && values.down_payment
+              ? Number(values.down_payment)
+              : undefined,
           employment_experience_years:
             isPersonalLoan && values.employment_experience_years
               ? Number(values.employment_experience_years)
@@ -210,6 +327,48 @@ export default function LoanApplicationPage() {
             isPersonalLoan && values.monthly_household_expenses
               ? Number(values.monthly_household_expenses)
               : undefined,
+          business_name: isBusinessLoan ? values.business_name : undefined,
+          business_type: isBusinessLoan ? values.business_type : undefined,
+          industry: isBusinessLoan ? values.industry : undefined,
+          business_vintage_years:
+            isBusinessLoan && values.business_vintage_years
+              ? Number(values.business_vintage_years)
+              : undefined,
+          annual_turnover:
+            isBusinessLoan && values.annual_turnover ? Number(values.annual_turnover) : undefined,
+          monthly_business_revenue:
+            isBusinessLoan && values.monthly_business_revenue
+              ? Number(values.monthly_business_revenue)
+              : undefined,
+          monthly_net_profit:
+            isBusinessLoan && values.monthly_net_profit
+              ? Number(values.monthly_net_profit)
+              : undefined,
+          gst_number: isBusinessLoan ? values.gst_number : undefined,
+          udyam_registration_number: isBusinessLoan ? values.udyam_registration_number : undefined,
+          cin_llpin: isBusinessLoan ? values.cin_llpin : undefined,
+          number_of_employees:
+            isBusinessLoan && values.number_of_employees
+              ? Number(values.number_of_employees)
+              : undefined,
+          existing_business_loan_outstanding:
+            isBusinessLoan && values.existing_business_loan_outstanding
+              ? Number(values.existing_business_loan_outstanding)
+              : undefined,
+          business_bank_name: isBusinessLoan ? values.business_bank_name : undefined,
+          collateral_required:
+            isBusinessLoan && values.collateral_required
+              ? values.collateral_required === "Yes"
+              : undefined,
+          collateral_type: isBusinessLoan ? values.collateral_type : undefined,
+          collateral_value:
+            isBusinessLoan && values.collateral_value ? Number(values.collateral_value) : undefined,
+          occupation_designation: isHomeLoan ? values.occupation_designation : undefined,
+          total_work_experience: isHomeLoan ? values.total_work_experience : undefined,
+          experience_current_employer: isHomeLoan ? values.experience_current_employer : undefined,
+          property_type: isHomeLoan ? values.property_type : undefined,
+          property_status: isHomeLoan ? values.property_status : undefined,
+          builder_developer_name: isHomeLoan ? values.builder_developer_name : undefined,
         },
         idToken,
       );
@@ -311,12 +470,28 @@ export default function LoanApplicationPage() {
                     </div>
                     <div>
                       <label className={labelClass}>PAN</label>
-                      <input disabled={submitting} {...register("pan")} className={inputClass} />
+                      <input
+                        disabled={submitting}
+                        maxLength={10}
+                        placeholder="ABCDE1234F"
+                        {...register("pan", {
+                          onChange: (e) => {
+                            e.target.value = e.target.value.toUpperCase();
+                          },
+                        })}
+                        className={inputClass}
+                      />
                       {errors.pan && <p className={errorClass}>{errors.pan.message}</p>}
                     </div>
                     <div>
                       <label className={labelClass}>Aadhaar</label>
-                      <input disabled={submitting} {...register("aadhaar")} className={inputClass} />
+                      <input
+                        disabled={submitting}
+                        maxLength={12}
+                        inputMode="numeric"
+                        {...register("aadhaar")}
+                        className={inputClass}
+                      />
                       {errors.aadhaar && <p className={errorClass}>{errors.aadhaar.message}</p>}
                     </div>
                     <div>
@@ -373,7 +548,7 @@ export default function LoanApplicationPage() {
                     </div>
                     <div>
                       <label className={labelClass}>Loan purpose</label>
-                      {isPersonal ? (
+                      {isPersonal || isBusiness ? (
                         <select
                           disabled={submitting}
                           {...register("loan_purpose")}
@@ -383,11 +558,13 @@ export default function LoanApplicationPage() {
                           <option value="" disabled>
                             Select purpose
                           </option>
-                          {PERSONAL_LOAN_PURPOSES.map((purpose) => (
-                            <option key={purpose} value={purpose}>
-                              {purpose}
-                            </option>
-                          ))}
+                          {(isPersonal ? PERSONAL_LOAN_PURPOSES : BUSINESS_LOAN_PURPOSES).map(
+                            (purpose) => (
+                              <option key={purpose} value={purpose}>
+                                {purpose}
+                              </option>
+                            ),
+                          )}
                         </select>
                       ) : (
                         <input
@@ -471,8 +648,106 @@ export default function LoanApplicationPage() {
                         className={inputClass}
                       />
                     </div>
-                    {!isPersonal && (
+                    {isHome && (
                       <>
+                        <div>
+                          <label className={labelClass}>Occupation / Designation</label>
+                          <select
+                            disabled={submitting}
+                            {...register("occupation_designation")}
+                            className={inputClass}
+                            defaultValue=""
+                          >
+                            <option value="" disabled>
+                              Select occupation / designation
+                            </option>
+                            {OCCUPATION_DESIGNATIONS.map((occupation) => (
+                              <option key={occupation} value={occupation}>
+                                {occupation}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Total work experience (years)</label>
+                          <select
+                            disabled={submitting}
+                            {...register("total_work_experience")}
+                            className={inputClass}
+                            defaultValue=""
+                          >
+                            <option value="" disabled>
+                              Select total work experience
+                            </option>
+                            {TOTAL_WORK_EXPERIENCE_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Experience with current employer (years)</label>
+                          <select
+                            disabled={submitting}
+                            {...register("experience_current_employer")}
+                            className={inputClass}
+                            defaultValue=""
+                          >
+                            <option value="" disabled>
+                              Select experience with current employer
+                            </option>
+                            {CURRENT_EMPLOYER_EXPERIENCE_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Property type</label>
+                          <select
+                            disabled={submitting}
+                            {...register("property_type")}
+                            className={inputClass}
+                            defaultValue=""
+                          >
+                            <option value="" disabled>
+                              Select property type
+                            </option>
+                            {PROPERTY_TYPES.map((type) => (
+                              <option key={type} value={type}>
+                                {type}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Property status</label>
+                          <select
+                            disabled={submitting}
+                            {...register("property_status")}
+                            className={inputClass}
+                            defaultValue=""
+                          >
+                            <option value="" disabled>
+                              Select property status
+                            </option>
+                            {PROPERTY_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Builder / Developer name</label>
+                          <input
+                            disabled={submitting}
+                            {...register("builder_developer_name")}
+                            className={inputClass}
+                          />
+                        </div>
                         <div>
                           <label className={labelClass}>Property value</label>
                           <input
@@ -531,6 +806,177 @@ export default function LoanApplicationPage() {
                             step="0.01"
                             disabled={submitting}
                             {...register("monthly_household_expenses")}
+                            className={inputClass}
+                          />
+                        </div>
+                      </>
+                    )}
+                    {isBusiness && (
+                      <>
+                        <div>
+                          <label className={labelClass}>Business name</label>
+                          <input
+                            disabled={submitting}
+                            {...register("business_name")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Business type</label>
+                          <select
+                            disabled={submitting}
+                            {...register("business_type")}
+                            className={inputClass}
+                            defaultValue=""
+                          >
+                            <option value="" disabled>
+                              Select business type
+                            </option>
+                            {BUSINESS_TYPES.map((type) => (
+                              <option key={type} value={type}>
+                                {type}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Industry</label>
+                          <select
+                            disabled={submitting}
+                            {...register("industry")}
+                            className={inputClass}
+                            defaultValue=""
+                          >
+                            <option value="" disabled>
+                              Select industry
+                            </option>
+                            {INDUSTRIES.map((industry) => (
+                              <option key={industry} value={industry}>
+                                {industry}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Business vintage (years)</label>
+                          <input
+                            type="number"
+                            disabled={submitting}
+                            {...register("business_vintage_years")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Annual turnover</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={submitting}
+                            {...register("annual_turnover")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Monthly business revenue</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={submitting}
+                            {...register("monthly_business_revenue")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Monthly net profit</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={submitting}
+                            {...register("monthly_net_profit")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>GST number</label>
+                          <input
+                            disabled={submitting}
+                            {...register("gst_number")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Udyam/MSME registration number</label>
+                          <input
+                            disabled={submitting}
+                            {...register("udyam_registration_number")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>CIN / LLPIN</label>
+                          <input
+                            disabled={submitting}
+                            {...register("cin_llpin")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Number of employees</label>
+                          <input
+                            type="number"
+                            disabled={submitting}
+                            {...register("number_of_employees")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Existing business loan outstanding</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={submitting}
+                            {...register("existing_business_loan_outstanding")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Business bank name</label>
+                          <input
+                            disabled={submitting}
+                            {...register("business_bank_name")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Collateral required?</label>
+                          <select
+                            disabled={submitting}
+                            {...register("collateral_required")}
+                            className={inputClass}
+                            defaultValue=""
+                          >
+                            <option value="" disabled>
+                              Select an option
+                            </option>
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelClass}>Collateral type</label>
+                          <input
+                            disabled={submitting}
+                            {...register("collateral_type")}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Collateral value</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            disabled={submitting}
+                            {...register("collateral_value")}
                             className={inputClass}
                           />
                         </div>

@@ -27,6 +27,28 @@ class LoanApplicationCreate(BaseModel):
     existing_loan_outstanding: Optional[Decimal] = None
     bank_name: Optional[str] = None
     monthly_household_expenses: Optional[Decimal] = None
+    business_name: Optional[str] = None
+    business_type: Optional[str] = None
+    industry: Optional[str] = None
+    business_vintage_years: Optional[int] = None
+    annual_turnover: Optional[Decimal] = None
+    monthly_business_revenue: Optional[Decimal] = None
+    monthly_net_profit: Optional[Decimal] = None
+    gst_number: Optional[str] = None
+    udyam_registration_number: Optional[str] = None
+    cin_llpin: Optional[str] = None
+    number_of_employees: Optional[int] = None
+    existing_business_loan_outstanding: Optional[Decimal] = None
+    business_bank_name: Optional[str] = None
+    collateral_required: Optional[bool] = None
+    collateral_type: Optional[str] = None
+    collateral_value: Optional[Decimal] = None
+    occupation_designation: Optional[str] = None
+    total_work_experience: Optional[str] = None
+    experience_current_employer: Optional[str] = None
+    property_type: Optional[str] = None
+    property_status: Optional[str] = None
+    builder_developer_name: Optional[str] = None
 
 
 class LoanApplicationSubmit(BaseModel):
@@ -56,6 +78,28 @@ class LoanApplicationResponse(BaseModel):
     existing_loan_outstanding: Optional[Decimal] = None
     bank_name: Optional[str] = None
     monthly_household_expenses: Optional[Decimal] = None
+    business_name: Optional[str] = None
+    business_type: Optional[str] = None
+    industry: Optional[str] = None
+    business_vintage_years: Optional[int] = None
+    annual_turnover: Optional[Decimal] = None
+    monthly_business_revenue: Optional[Decimal] = None
+    monthly_net_profit: Optional[Decimal] = None
+    gst_number: Optional[str] = None
+    udyam_registration_number: Optional[str] = None
+    cin_llpin: Optional[str] = None
+    number_of_employees: Optional[int] = None
+    existing_business_loan_outstanding: Optional[Decimal] = None
+    business_bank_name: Optional[str] = None
+    collateral_required: Optional[bool] = None
+    collateral_type: Optional[str] = None
+    collateral_value: Optional[Decimal] = None
+    occupation_designation: Optional[str] = None
+    total_work_experience: Optional[str] = None
+    experience_current_employer: Optional[str] = None
+    property_type: Optional[str] = None
+    property_status: Optional[str] = None
+    builder_developer_name: Optional[str] = None
     status: LoanStatus
     created_at: datetime
     updated_at: datetime

@@ -23,6 +23,10 @@ We are in Phase 2 (`../phase2.txt`). Step 1 (loan-application intake page, dashb
 - Dynamic route error/not-found handling: `not-found.tsx` (Server Component, triggered by `notFound()`) and `error.tsx` (must be `"use client"`, receives `{ error, unstable_retry }` in this Next.js version — not the older `reset` prop) live alongside `page.tsx` in the same route segment.
 - Shared status-chip colors live in `lib/status-styles.ts` (`getStatusChipStyle`) and currency formatting in `lib/format.ts` (`formatCurrency`) — both were previously duplicated per-component; extend these instead of re-inlining.
 
+## Loan application form pattern
+
+`loan-application/page.tsx` handles Home/Personal/Business loan types with **one flat Zod schema** (all type-specific fields optional) plus inline `{isHome/isPersonal/isBusiness && (...)}` JSX blocks keyed off `watch("loan_type")` — not separate sub-components or a config-driven field list. Follow this pattern for new fields/loan types rather than introducing a new structure. Shared PAN/Aadhaar/ID-format validators live in `lib/validators.ts` — extend that instead of inlining regex/checksum logic in a form. To live-transform an input as the user types (e.g. force-uppercase), pass `onChange` inside `register(name, { onChange: (e) => { e.target.value = ... } })` — react-hook-form picks up the mutated value.
+
 ## Design tokens (light theme, established across dashboard-shell/topbar/sidebar/kpi-card)
 
 Reuse rather than reinvent: page bg `bg-[#f8fbff]` + blurred decorative blobs; cards `rounded-[24-28px] border border-white/60 bg-white/75 shadow-[0_8px_30px_rgba(15,27,51,0.06)] backdrop-blur-xl`; primary CTA gradient `from-[#26D9FF] via-[#3B82F6] to-[#A855F7]`; heading text `text-[#0f1b33]`, muted text `text-[#5b6b8c]`. The real brand logo is a Cloudinary PNG at the `LOGO_URL` const in `components/landing/navbar.tsx` (not a generated mark) — reuse that URL with `next/image` + `unoptimized` for any other page needing it.

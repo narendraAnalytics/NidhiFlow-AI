@@ -34,6 +34,8 @@ SQLAlchemy engine/session/`Base`/`get_db()` live in `app/core/database.py`. Sche
 
 Local dev DB access goes through the Cloud SQL Auth Proxy on `127.0.0.1:5432` — nothing connects directly. Run `cloud-sql-proxy.exe <instance-connection-name> --port=5432 --gcloud-auth` before any DB-touching code (incl. `/health/db`) will work. `--gcloud-auth` is needed unless Application Default Credentials are set up.
 
+If the backend is already running, both `uv run alembic upgrade head` and `uv run alembic revision --autogenerate` fail with `Access is denied` (venv is locked) — use `./.venv/Scripts/python.exe -m alembic ...` directly instead, then manually restart uvicorn (see reload gotcha below).
+
 Don't echo raw exception text from DB/infra errors into HTTP responses (can leak DSN/credentials) — log server-side via `logging`, return a generic client-facing message.
 
 ## Dev server reload gotcha

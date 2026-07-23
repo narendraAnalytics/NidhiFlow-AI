@@ -65,6 +65,28 @@ export interface LoanApplicationCreate {
   existing_loan_outstanding?: number;
   bank_name?: string;
   monthly_household_expenses?: number;
+  business_name?: string;
+  business_type?: string;
+  industry?: string;
+  business_vintage_years?: number;
+  annual_turnover?: number;
+  monthly_business_revenue?: number;
+  monthly_net_profit?: number;
+  gst_number?: string;
+  udyam_registration_number?: string;
+  cin_llpin?: string;
+  number_of_employees?: number;
+  existing_business_loan_outstanding?: number;
+  business_bank_name?: string;
+  collateral_required?: boolean;
+  collateral_type?: string;
+  collateral_value?: number;
+  occupation_designation?: string;
+  total_work_experience?: string;
+  experience_current_employer?: string;
+  property_type?: string;
+  property_status?: string;
+  builder_developer_name?: string;
 }
 
 export interface LoanApplicationResponse extends LoanApplicationCreate {
