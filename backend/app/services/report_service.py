@@ -17,6 +17,8 @@ from app.models.document_validation_result import DocumentValidationResult
 from app.models.loan_application import LoanApplication
 from app.models.loan_document import LoanDocument
 from app.models.loan_validation_summary import LoanValidationSummary
+from app.models.workflow_event import WorkflowEvent
+from app.models.workflow_execution import WorkflowExecution
 from app.services.reporting_service import LoanNotFoundError
 
 BRAND_COLOR = colors.HexColor("#3B82F6")
@@ -377,6 +379,21 @@ def build_loan_report_pdf(db: Session, loan_id: uuid.UUID) -> bytes:
             )
         )
     checklist, recommendations = _build_verification_checklist(customer, loan, documents, validation_by_document)
+    if summary and summary.missing_documents:
+        checklist.insert(
+            0,
+            (
+                "Required Documents Complete",
+                "No",
+                f"Missing: {', '.join(summary.missing_documents)}",
+            ),
+        )
+        recommendations.insert(
+            0,
+            f"The following required documents are missing and must be uploaded: {', '.join(summary.missing_documents)}.",
+        )
+    elif summary:
+        checklist.insert(0, ("Required Documents Complete", "Yes", ""))
     if checklist:
         checklist_rows = [_wrap_row(["Check", "Result", "Detail"], TABLE_HEADER_STYLE)]
         for label, status, detail in checklist:
@@ -421,6 +438,26 @@ def build_loan_report_pdf(db: Session, loan_id: uuid.UUID) -> bytes:
     else:
         verdict = "This application has not yet been submitted for processing."
     story.append(Paragraph(f"<b>{loan.status.value}</b> — {verdict}", body_style))
+
+    latest_execution = (
+        db.query(WorkflowExecution)
+        .filter(WorkflowExecution.loan_application_id == loan_id)
+        .order_by(WorkflowExecution.started_at.desc())
+        .first()
+    )
+    decision_event = None
+    if latest_execution:
+        decision_event = (
+            db.query(WorkflowEvent)
+            .filter(
+                WorkflowEvent.workflow_execution_id == latest_execution.id,
+                WorkflowEvent.event_type == "Pipeline Decision",
+            )
+            .order_by(WorkflowEvent.created_at.desc())
+            .first()
+        )
+    if decision_event and decision_event.message:
+        story.append(Paragraph(decision_event.message, muted_style))
 
     story.append(Spacer(1, 8 * mm))
     story.append(

@@ -41,7 +41,10 @@ def get_loan_report_pdf_route(
     current_user: dict = Depends(get_current_firebase_user),
 ):
     require_owned_loan(db, current_user, loan_id)
-    pdf_bytes = build_loan_report_pdf(db, loan_id)
+    try:
+        pdf_bytes = build_loan_report_pdf(db, loan_id)
+    except LoanNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

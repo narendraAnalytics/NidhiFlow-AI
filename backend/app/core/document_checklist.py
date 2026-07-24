@@ -84,3 +84,20 @@ REQUIRED_DOCUMENT_TYPES: dict[LoanType, set[DocumentType]] = {
     LoanType.PERSONAL: {DocumentType.PAN_CARD, DocumentType.AADHAAR, DocumentType.SALARY_SLIP},
     LoanType.BUSINESS: {DocumentType.PAN_CARD, DocumentType.AADHAAR, DocumentType.GST_CERTIFICATE},
 }
+
+
+def compute_missing_required_documents(loan_type_raw: str | None, documents: list[dict]) -> list[str]:
+    """Required-document-types gap for a loan's declared type, given the
+    documents actually attached. Shared by intake_supervisor (early, cheap
+    check) and validation_compliance (post-OCR re-confirmation).
+    """
+    try:
+        loan_type = LoanType(loan_type_raw) if loan_type_raw else None
+    except ValueError:
+        loan_type = None
+    if loan_type is None:
+        return []
+
+    required_types = {t.value for t in REQUIRED_DOCUMENT_TYPES.get(loan_type, set())}
+    present_types = {doc.get("document_type") for doc in documents}
+    return sorted(t for t in required_types if t not in present_types)

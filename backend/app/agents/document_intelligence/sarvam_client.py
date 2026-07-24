@@ -1,3 +1,5 @@
+import logging
+import random
 import time
 
 import httpx
@@ -11,11 +13,69 @@ from app.core.config import (
     SARVAM_VISION_OUTPUT_FORMAT,
 )
 
+logger = logging.getLogger(__name__)
+
 JOB_BASE_PATH = "/doc-digitization/job/v1"
+
+MAX_ATTEMPTS = 3
+BASE_BACKOFF_SECONDS = 1.0
+MAX_BACKOFF_SECONDS = 20.0
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 class SarvamVisionError(Exception):
     pass
+
+
+def _sleep_before_retry(attempt: int, response: httpx.Response | None) -> None:
+    if response is not None:
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            try:
+                time.sleep(float(retry_after))
+                return
+            except ValueError:
+                pass
+    delay = min(BASE_BACKOFF_SECONDS * (2**attempt), MAX_BACKOFF_SECONDS)
+    time.sleep(delay + random.uniform(0, delay * 0.25))
+
+
+def _request_with_retry(request_fn, context: str) -> httpx.Response:
+    """Runs an HTTP call with exponential-backoff retry for transient failures
+    (timeouts, connection errors, HTTP 429/5xx). Non-retryable 4xx responses
+    are returned immediately so the caller's `_raise_for_status` can surface
+    them without a wasted retry.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            response = request_fn()
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            last_exc = exc
+            if attempt == MAX_ATTEMPTS - 1:
+                raise SarvamVisionError(
+                    f"Sarvam {context} failed after {MAX_ATTEMPTS} attempts: {exc}"
+                ) from exc
+            logger.warning(
+                "Sarvam %s network error (attempt %d/%d): %s", context, attempt + 1, MAX_ATTEMPTS, exc
+            )
+            _sleep_before_retry(attempt, None)
+            continue
+
+        if response.status_code in RETRYABLE_STATUS_CODES and attempt < MAX_ATTEMPTS - 1:
+            logger.warning(
+                "Sarvam %s returned status %d (attempt %d/%d), retrying",
+                context,
+                response.status_code,
+                attempt + 1,
+                MAX_ATTEMPTS,
+            )
+            _sleep_before_retry(attempt, response)
+            continue
+
+        return response
+
+    raise SarvamVisionError(f"Sarvam {context} failed after {MAX_ATTEMPTS} attempts: {last_exc}")
 
 
 def _raise_for_status(response: httpx.Response, context: str) -> None:
@@ -34,32 +94,41 @@ class SarvamVisionClient:
         )
 
     def create_document_job(self, language: str | None = None, output_format: str | None = None) -> dict:
-        response = self._client.post(
-            f"{JOB_BASE_PATH}",
-            json={
-                "job_parameters": {
-                    "language": language or SARVAM_VISION_LANGUAGE,
-                    "output_format": output_format or SARVAM_VISION_OUTPUT_FORMAT,
-                }
-            },
+        response = _request_with_retry(
+            lambda: self._client.post(
+                f"{JOB_BASE_PATH}",
+                json={
+                    "job_parameters": {
+                        "language": language or SARVAM_VISION_LANGUAGE,
+                        "output_format": output_format or SARVAM_VISION_OUTPUT_FORMAT,
+                    }
+                },
+            ),
+            "create_document_job",
         )
         _raise_for_status(response, "create_document_job")
         return response.json()
 
     def get_upload_urls(self, job_id: str, filename: str) -> dict:
-        response = self._client.post(
-            f"{JOB_BASE_PATH}/upload-files",
-            json={"job_id": job_id, "files": [filename]},
+        response = _request_with_retry(
+            lambda: self._client.post(
+                f"{JOB_BASE_PATH}/upload-files",
+                json={"job_id": job_id, "files": [filename]},
+            ),
+            "get_upload_urls",
         )
         _raise_for_status(response, "get_upload_urls")
         return response.json()
 
     def upload_file(self, upload_url: str, file_bytes: bytes, content_type: str) -> None:
-        response = httpx.put(
-            upload_url,
-            content=file_bytes,
-            headers={"Content-Type": content_type, "x-ms-blob-type": "BlockBlob"},
-            timeout=60.0,
+        response = _request_with_retry(
+            lambda: httpx.put(
+                upload_url,
+                content=file_bytes,
+                headers={"Content-Type": content_type, "x-ms-blob-type": "BlockBlob"},
+                timeout=60.0,
+            ),
+            "upload_file",
         )
         if response.status_code >= 400:
             raise SarvamVisionError(
@@ -67,12 +136,16 @@ class SarvamVisionClient:
             )
 
     def start_job(self, job_id: str) -> dict:
-        response = self._client.post(f"{JOB_BASE_PATH}/{job_id}/start", json={})
+        response = _request_with_retry(
+            lambda: self._client.post(f"{JOB_BASE_PATH}/{job_id}/start", json={}), "start_job"
+        )
         _raise_for_status(response, "start_job")
         return response.json()
 
     def get_job_status(self, job_id: str) -> dict:
-        response = self._client.get(f"{JOB_BASE_PATH}/{job_id}/status")
+        response = _request_with_retry(
+            lambda: self._client.get(f"{JOB_BASE_PATH}/{job_id}/status"), "get_job_status"
+        )
         _raise_for_status(response, "get_job_status")
         return response.json()
 
@@ -92,12 +165,15 @@ class SarvamVisionClient:
             time.sleep(SARVAM_POLL_INTERVAL_SECONDS)
 
     def get_download_urls(self, job_id: str) -> dict:
-        response = self._client.post(f"{JOB_BASE_PATH}/{job_id}/download-files", json={})
+        response = _request_with_retry(
+            lambda: self._client.post(f"{JOB_BASE_PATH}/{job_id}/download-files", json={}),
+            "get_download_urls",
+        )
         _raise_for_status(response, "get_download_urls")
         return response.json()
 
     def download_result(self, download_url: str) -> bytes:
-        response = httpx.get(download_url, timeout=60.0)
+        response = _request_with_retry(lambda: httpx.get(download_url, timeout=60.0), "download_result")
         if response.status_code >= 400:
             raise SarvamVisionError(
                 f"Sarvam download_result failed with status {response.status_code}: {response.text}"
@@ -111,10 +187,11 @@ class SarvamVisionClient:
         content_type: str,
         language: str | None = None,
         output_format: str | None = None,
-    ) -> dict[str, bytes]:
-        """Runs the full job pipeline and returns every downloaded output file,
-        keyed by filename, so the parser can handle either a single ZIP or
-        several individually-signed output files.
+    ) -> tuple[dict[str, bytes], str, bool]:
+        """Runs the full job pipeline and returns every downloaded output file
+        (keyed by filename, so the parser can handle either a single ZIP or
+        several individually-signed output files), the job_id for
+        traceability, and whether the job only partially completed.
         """
         job = self.create_document_job(language, output_format)
         job_id = job["job_id"]
@@ -124,17 +201,19 @@ class SarvamVisionClient:
         self.upload_file(upload_url, document_bytes, content_type)
 
         self.start_job(job_id)
-        self.wait_until_complete(job_id)
+        status = self.wait_until_complete(job_id)
+        partial = status.get("job_state") == "PartiallyCompleted"
 
         download_info = self.get_download_urls(job_id)
         download_urls = download_info.get("download_urls", {})
         if not download_urls:
             raise SarvamVisionError(f"Sarvam job {job_id} completed but returned no download_urls")
 
-        return {
+        files = {
             output_filename: self.download_result(entry["file_url"])
             for output_filename, entry in download_urls.items()
         }
+        return files, job_id, partial
 
     def close(self) -> None:
         self._client.close()

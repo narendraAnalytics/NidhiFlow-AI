@@ -1,6 +1,7 @@
 from app.agents.pipeline_orchestrator.rules import (
     CONFIDENCE_THRESHOLD,
     ERROR_HUMAN_REVIEW_REQUIRED,
+    ERROR_INTAKE_INCOMPLETE,
     ERROR_MISSING_DOCUMENT,
     ERROR_OCR_ERROR,
     ERROR_VALIDATION_ERROR,
@@ -16,6 +17,7 @@ def evaluate(
     validation_summary: dict,
     human_review_required: bool,
     retry_count: int,
+    intake_summary: dict | None = None,
 ) -> OrchestrationDecision:
     """Pure, deterministic decision matrix. No LLM calls, no DB reads.
 
@@ -77,6 +79,22 @@ def evaluate(
         )
 
     if human_review_required:
+        intake_summary = intake_summary or {}
+        intake_missing_documents = intake_summary.get("missing_documents", [])
+        intake_missing_form_fields = intake_summary.get("missing_form_fields", [])
+        if intake_summary.get("status") == "failed" and (intake_missing_documents or intake_missing_form_fields):
+            reasons = []
+            if intake_missing_documents:
+                reasons.append(f"missing documents: {', '.join(intake_missing_documents)}")
+            if intake_missing_form_fields:
+                reasons.append(f"missing form fields: {', '.join(intake_missing_form_fields)}")
+            return OrchestrationDecision(
+                decision="human_review",
+                decision_reason=f"Intake incomplete ({'; '.join(reasons)})",
+                workflow_status=WORKFLOW_STATUS_HUMAN_REVIEW,
+                error_category=ERROR_INTAKE_INCOMPLETE,
+            )
+
         return OrchestrationDecision(
             decision="human_review",
             decision_reason="Flagged for human review by an earlier workflow stage",
@@ -95,11 +113,19 @@ def build_audit_trail(
     decision: OrchestrationDecision,
     ocr_summary: dict,
     validation_summary: dict,
+    intake_summary: dict | None = None,
 ) -> list[WorkflowEventRecord]:
     ocr_status = ocr_summary.get("status", "parsed")
     validation_status = validation_summary.get("validation_status", "passed")
+    intake_summary = intake_summary or {}
+    intake_status = intake_summary.get("status", "passed")
 
     return [
+        WorkflowEventRecord(
+            stage="intake_supervisor",
+            event_type="Intake Completed" if intake_status == "passed" else "Intake Incomplete",
+            message=f"intake_supervisor status={intake_status}",
+        ),
         WorkflowEventRecord(
             stage="document_intelligence",
             event_type="OCR Completed" if ocr_status != "failed" else "OCR Failed",

@@ -69,15 +69,64 @@ def run_loan_workflow(db: Session, loan: LoanApplication, retry_count: int = 0) 
             "pan": customer.pan,
             "aadhaar": customer.aadhaar,
             "full_name": customer.full_name,
+            "email": customer.email,
+            "phone": customer.phone,
+            "address": customer.address,
+            "age": customer.age,
+            "city": customer.city,
         }
         if customer
         else {},
         "loan_details": {
             "loan_type": loan.loan_type.value,
             "requested_amount": float(loan.requested_amount) if loan.requested_amount is not None else None,
-            "interest_rate": float(loan.interest_rate) if loan.interest_rate is not None else None,
-            "tenure": loan.tenure,
+            "loan_purpose": loan.loan_purpose,
+            "employment_type": loan.employment_type,
             "monthly_income": float(loan.monthly_income) if loan.monthly_income is not None else None,
+            "employer": loan.employer,
+            "tenure": loan.tenure,
+            "interest_rate": float(loan.interest_rate) if loan.interest_rate is not None else None,
+            "branch": loan.branch,
+            "credit_score": loan.credit_score,
+            "existing_emi": float(loan.existing_emi) if loan.existing_emi is not None else None,
+            "property_value": float(loan.property_value) if loan.property_value is not None else None,
+            "down_payment": float(loan.down_payment) if loan.down_payment is not None else None,
+            "employment_experience_years": loan.employment_experience_years,
+            "existing_loan_outstanding": (
+                float(loan.existing_loan_outstanding) if loan.existing_loan_outstanding is not None else None
+            ),
+            "bank_name": loan.bank_name,
+            "monthly_household_expenses": (
+                float(loan.monthly_household_expenses) if loan.monthly_household_expenses is not None else None
+            ),
+            "business_name": loan.business_name,
+            "business_type": loan.business_type,
+            "industry": loan.industry,
+            "business_vintage_years": loan.business_vintage_years,
+            "annual_turnover": float(loan.annual_turnover) if loan.annual_turnover is not None else None,
+            "monthly_business_revenue": (
+                float(loan.monthly_business_revenue) if loan.monthly_business_revenue is not None else None
+            ),
+            "monthly_net_profit": float(loan.monthly_net_profit) if loan.monthly_net_profit is not None else None,
+            "gst_number": loan.gst_number,
+            "udyam_registration_number": loan.udyam_registration_number,
+            "cin_llpin": loan.cin_llpin,
+            "number_of_employees": loan.number_of_employees,
+            "existing_business_loan_outstanding": (
+                float(loan.existing_business_loan_outstanding)
+                if loan.existing_business_loan_outstanding is not None
+                else None
+            ),
+            "business_bank_name": loan.business_bank_name,
+            "collateral_required": loan.collateral_required,
+            "collateral_type": loan.collateral_type,
+            "collateral_value": float(loan.collateral_value) if loan.collateral_value is not None else None,
+            "occupation_designation": loan.occupation_designation,
+            "total_work_experience": loan.total_work_experience,
+            "experience_current_employer": loan.experience_current_employer,
+            "property_type": loan.property_type,
+            "property_status": loan.property_status,
+            "builder_developer_name": loan.builder_developer_name,
         },
         "current_stage": None,
         "human_review_required": False,

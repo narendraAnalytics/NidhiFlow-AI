@@ -30,6 +30,7 @@ Frontend is live on Vercel: https://nidhiflow-ai.vercel.app/ (deployed manually 
 
 ## Infra gotchas (Firebase MCP / gcloud)
 
+- To restart the backend cleanly after editing multiple files under `backend/app/agents/` or `backend/app/services/`: `powershell -Command "Get-Process python | Select-Object Id,ProcessName"`, then `Stop-Process -Id <reloader-pid>,<server-pid> -Force`, then re-run `uv run uvicorn main:app --reload`. `--reload`'s file-watcher can coalesce several rapid edits into one silent reload — don't trust it after a multi-file change without this. A background-task notification reporting "failed with exit code 127" right after you intentionally `Stop-Process`'d it is expected, not a bug.
 - If the frontend shows "Failed to load dashboard data" or any API call fails, check first whether `cloud-sql-proxy.exe` and the backend (`uv run uvicorn main:app --reload`) are actually running — both are required locally and neither auto-starts. This was the root cause the one time it came up, not an app bug.
 - `cloud-sql-proxy.exe` is already installed at `C:\Users\ES\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\cloud-sql-proxy.exe` — no need to search for it or reinstall in a fresh session. Start it with:
   `"C:\Users\ES\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\cloud-sql-proxy.exe" nidhiflow-ai-platform:asia-south1:nidhiflow-db-dev --port=5432 --gcloud-auth`

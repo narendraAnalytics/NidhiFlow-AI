@@ -69,3 +69,15 @@ PDF generation uses `reportlab` (Platypus), not WeasyPrint/xhtml2pdf — those n
 Sarvam OCR reads uploaded documents from Firebase Storage via `firebase-admin` + `credentials.ApplicationDefault()` (uses this machine's local gcloud ADC login — will need a service-account key once the backend is actually deployed). `SARVAM_API_KEY`/`GEMINI_API_KEY` blank-default means the corresponding node skips gracefully (status `"skipped"`) rather than erroring when unset.
 
 Step 5 uses **Gemma 4** (`gemma-4-26b-a4b-it`) via the `google-genai` SDK, not Gemini — confirmed working with `response_schema` structured JSON output against this project's actual free-tier `GEMINI_API_KEY` (live-tested, not just documented). `GEMINI_MODEL` is env-overridable to swap to a Gemini model (e.g. `gemini-3.5-flash-lite`) if needed later. Extraction (semantic understanding) uses the LLM; cross-document comparison (PAN/Aadhaar consistency, EMI-vs-income) is deterministic Python in `validation_compliance/agent.py`, not a second LLM call.
+
+## No test suite yet
+
+`backend/tests/` doesn't exist. Verify agent/pipeline changes end-to-end by scripting a direct call: `./.venv/Scripts/python.exe -c "..."` — create `Customer`/`LoanApplication` rows via the SQLAlchemy models, call `submit_loan_application(db, loan, LoanApplicationSubmit(changed_by=...))` directly (runs the real LangGraph pipeline, no mocking), inspect the result/generated PDF, then delete the test rows.
+
+## Sarvam Doc Digitization API has no prompt parameter
+
+`document_intelligence`'s Sarvam job API (`app/agents/document_intelligence/sarvam_client.py`) only accepts `language`/`output_format` in `job_parameters` — confirmed against Sarvam's own docs, there is no prompt/instruction field on this endpoint. Sarvam's separate "Extract" product does take a prompt, but don't add it here — it would duplicate `validation_compliance`'s Gemma-based extraction. Sarvam also supports ZIP multi-file batching per job (unused here — each document still gets its own job; concurrency is handled via a `ThreadPoolExecutor` in `agent.py` instead, batching was deliberately deferred).
+
+## Required-field policies (loan intake)
+
+Required *document* types per loan type live in `app/core/document_checklist.py::REQUIRED_DOCUMENT_TYPES` (use the shared `compute_missing_required_documents()` helper, don't reinline). Required *form* fields per loan type (a policy that didn't exist before — nothing previously enforced loan-type-specific fields like `gst_number`/`property_value` anywhere, frontend or backend) live in `app/agents/intake_supervisor/agent.py::REQUIRED_FORM_FIELDS_BY_LOAN_TYPE`.

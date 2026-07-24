@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/auth-context";
 import { createCustomer, createLoanApplication, getActiveLoan, getDocuments, getLoanTimeline } from "@/lib/api";
 import { PAN_REGEX, isValidAadhaar } from "@/lib/validators";
+import { formatAmountInput, parseAmountInput } from "@/lib/format";
 import type { LoanDocumentResponse, LoanType } from "@/types/loan";
 import type { LoanTimelineResponse } from "@/types/reporting";
 import { LoanSummaryCard } from "@/components/loan/loan-summary-card";
@@ -155,6 +156,7 @@ const INDUSTRIES = [
 const OCCUPATION_DESIGNATIONS = [
   "Doctor",
   "Engineer",
+  "Software Engineer",
   "Chartered Accountant (CA)",
   "Lawyer",
   "Architect",
@@ -195,6 +197,12 @@ export const inputClass =
   "w-full rounded-xl border border-[#e2e8f5] bg-white py-3 px-4 text-[14.5px] text-[#0f1b33] placeholder:text-[#9aa8c2] outline-none transition-colors focus:border-[#3B82F6] focus:ring-2 focus:ring-[#3B82F6]/20 disabled:opacity-60 disabled:bg-[#f8fbff]";
 export const labelClass = "mb-1.5 block text-[13px] font-semibold text-[#0f1b33]";
 const errorClass = "mt-1.5 text-[12.5px] font-medium text-[#be185d]";
+
+const amountInputOptions = {
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.target.value = formatAmountInput(e.target.value);
+  },
+};
 
 const STEPS: { key: Phase; label: string }[] = [
   { key: "form", label: "Details" },
@@ -348,23 +356,23 @@ export default function LoanApplicationPage() {
         {
           customer_id: customer.id,
           loan_type: values.loan_type,
-          requested_amount: Number(values.requested_amount),
+          requested_amount: parseAmountInput(values.requested_amount),
           loan_purpose: values.loan_purpose,
           employment_type: values.employment_type,
-          monthly_income: values.monthly_income ? Number(values.monthly_income) : undefined,
+          monthly_income: values.monthly_income ? parseAmountInput(values.monthly_income) : undefined,
           employer: values.employer,
           tenure: values.tenure ? Number(values.tenure) : undefined,
           interest_rate: values.interest_rate ? Number(values.interest_rate) : undefined,
           branch: values.branch,
           credit_score: values.credit_score ? Number(values.credit_score) : undefined,
-          existing_emi: values.existing_emi ? Number(values.existing_emi) : undefined,
+          existing_emi: values.existing_emi ? parseAmountInput(values.existing_emi) : undefined,
           property_value:
             !isPersonalLoan && !isBusinessLoan && values.property_value
-              ? Number(values.property_value)
+              ? parseAmountInput(values.property_value)
               : undefined,
           down_payment:
             !isPersonalLoan && !isBusinessLoan && values.down_payment
-              ? Number(values.down_payment)
+              ? parseAmountInput(values.down_payment)
               : undefined,
           employment_experience_years:
             isPersonalLoan && values.employment_experience_years
@@ -372,12 +380,12 @@ export default function LoanApplicationPage() {
               : undefined,
           existing_loan_outstanding:
             isPersonalLoan && values.existing_loan_outstanding
-              ? Number(values.existing_loan_outstanding)
+              ? parseAmountInput(values.existing_loan_outstanding)
               : undefined,
           bank_name: isPersonalLoan ? values.bank_name : undefined,
           monthly_household_expenses:
             isPersonalLoan && values.monthly_household_expenses
-              ? Number(values.monthly_household_expenses)
+              ? parseAmountInput(values.monthly_household_expenses)
               : undefined,
           business_name: isBusinessLoan ? values.business_name : undefined,
           business_type: isBusinessLoan ? values.business_type : undefined,
@@ -387,14 +395,16 @@ export default function LoanApplicationPage() {
               ? Number(values.business_vintage_years)
               : undefined,
           annual_turnover:
-            isBusinessLoan && values.annual_turnover ? Number(values.annual_turnover) : undefined,
+            isBusinessLoan && values.annual_turnover
+              ? parseAmountInput(values.annual_turnover)
+              : undefined,
           monthly_business_revenue:
             isBusinessLoan && values.monthly_business_revenue
-              ? Number(values.monthly_business_revenue)
+              ? parseAmountInput(values.monthly_business_revenue)
               : undefined,
           monthly_net_profit:
             isBusinessLoan && values.monthly_net_profit
-              ? Number(values.monthly_net_profit)
+              ? parseAmountInput(values.monthly_net_profit)
               : undefined,
           gst_number: isBusinessLoan ? values.gst_number : undefined,
           udyam_registration_number: isBusinessLoan ? values.udyam_registration_number : undefined,
@@ -405,7 +415,7 @@ export default function LoanApplicationPage() {
               : undefined,
           existing_business_loan_outstanding:
             isBusinessLoan && values.existing_business_loan_outstanding
-              ? Number(values.existing_business_loan_outstanding)
+              ? parseAmountInput(values.existing_business_loan_outstanding)
               : undefined,
           business_bank_name: isBusinessLoan ? values.business_bank_name : undefined,
           collateral_required:
@@ -414,7 +424,9 @@ export default function LoanApplicationPage() {
               : undefined,
           collateral_type: isBusinessLoan ? values.collateral_type : undefined,
           collateral_value:
-            isBusinessLoan && values.collateral_value ? Number(values.collateral_value) : undefined,
+            isBusinessLoan && values.collateral_value
+              ? parseAmountInput(values.collateral_value)
+              : undefined,
           occupation_designation: isHomeLoan ? values.occupation_designation : undefined,
           total_work_experience: isHomeLoan ? values.total_work_experience : undefined,
           experience_current_employer: isHomeLoan ? values.experience_current_employer : undefined,
@@ -621,10 +633,10 @@ export default function LoanApplicationPage() {
                     <div>
                       <label className={labelClass}>Requested amount</label>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         disabled={submitting}
-                        {...register("requested_amount")}
+                        {...register("requested_amount", amountInputOptions)}
                         className={inputClass}
                       />
                       {errors.requested_amount && (
@@ -680,10 +692,10 @@ export default function LoanApplicationPage() {
                     <div>
                       <label className={labelClass}>Monthly income</label>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         disabled={submitting}
-                        {...register("monthly_income")}
+                        {...register("monthly_income", amountInputOptions)}
                         className={inputClass}
                       />
                     </div>
@@ -726,10 +738,10 @@ export default function LoanApplicationPage() {
                     <div>
                       <label className={labelClass}>Existing EMI</label>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         disabled={submitting}
-                        {...register("existing_emi")}
+                        {...register("existing_emi", amountInputOptions)}
                         className={inputClass}
                       />
                     </div>
@@ -836,20 +848,20 @@ export default function LoanApplicationPage() {
                         <div>
                           <label className={labelClass}>Property value</label>
                           <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             disabled={submitting}
-                            {...register("property_value")}
+                            {...register("property_value", amountInputOptions)}
                             className={inputClass}
                           />
                         </div>
                         <div>
                           <label className={labelClass}>Down payment</label>
                           <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             disabled={submitting}
-                            {...register("down_payment")}
+                            {...register("down_payment", amountInputOptions)}
                             className={inputClass}
                           />
                         </div>
@@ -869,10 +881,10 @@ export default function LoanApplicationPage() {
                         <div>
                           <label className={labelClass}>Existing loan outstanding</label>
                           <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             disabled={submitting}
-                            {...register("existing_loan_outstanding")}
+                            {...register("existing_loan_outstanding", amountInputOptions)}
                             className={inputClass}
                           />
                         </div>
@@ -887,10 +899,10 @@ export default function LoanApplicationPage() {
                         <div>
                           <label className={labelClass}>Monthly household expenses</label>
                           <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             disabled={submitting}
-                            {...register("monthly_household_expenses")}
+                            {...register("monthly_household_expenses", amountInputOptions)}
                             className={inputClass}
                           />
                         </div>
@@ -954,30 +966,30 @@ export default function LoanApplicationPage() {
                         <div>
                           <label className={labelClass}>Annual turnover</label>
                           <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             disabled={submitting}
-                            {...register("annual_turnover")}
+                            {...register("annual_turnover", amountInputOptions)}
                             className={inputClass}
                           />
                         </div>
                         <div>
                           <label className={labelClass}>Monthly business revenue</label>
                           <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             disabled={submitting}
-                            {...register("monthly_business_revenue")}
+                            {...register("monthly_business_revenue", amountInputOptions)}
                             className={inputClass}
                           />
                         </div>
                         <div>
                           <label className={labelClass}>Monthly net profit</label>
                           <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             disabled={submitting}
-                            {...register("monthly_net_profit")}
+                            {...register("monthly_net_profit", amountInputOptions)}
                             className={inputClass}
                           />
                         </div>
@@ -1017,10 +1029,10 @@ export default function LoanApplicationPage() {
                         <div>
                           <label className={labelClass}>Existing business loan outstanding</label>
                           <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             disabled={submitting}
-                            {...register("existing_business_loan_outstanding")}
+                            {...register("existing_business_loan_outstanding", amountInputOptions)}
                             className={inputClass}
                           />
                         </div>
@@ -1058,10 +1070,10 @@ export default function LoanApplicationPage() {
                         <div>
                           <label className={labelClass}>Collateral value</label>
                           <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             disabled={submitting}
-                            {...register("collateral_value")}
+                            {...register("collateral_value", amountInputOptions)}
                             className={inputClass}
                           />
                         </div>

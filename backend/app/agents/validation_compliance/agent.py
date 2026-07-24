@@ -9,8 +9,7 @@ from app.agents.validation_compliance.schemas import (
     TypeMatchStatus,
 )
 from app.core.config import GEMINI_API_KEY, GEMINI_USE_VERTEX
-from app.core.document_checklist import REQUIRED_DOCUMENT_TYPES
-from app.models.enums import LoanType
+from app.core.document_checklist import compute_missing_required_documents
 
 logger = logging.getLogger(__name__)
 
@@ -117,15 +116,7 @@ def _cross_document_validation_step(
         elif result.type_match_status == "match":
             checks_performed += 1
 
-    loan_type_raw = loan_details.get("loan_type")
-    try:
-        loan_type = LoanType(loan_type_raw) if loan_type_raw else None
-    except ValueError:
-        loan_type = None
-    required_types = {t.value for t in REQUIRED_DOCUMENT_TYPES[loan_type]} if loan_type else set()
-
-    present_types = {doc.get("document_type") for doc in documents}
-    missing_documents = sorted(t for t in required_types if t not in present_types)
+    missing_documents = compute_missing_required_documents(loan_details.get("loan_type"), documents)
 
     extracted_by_type: dict[str, ExtractedDocumentFields] = {
         result.document_type: result.extracted_fields

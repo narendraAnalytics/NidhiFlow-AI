@@ -1,5 +1,6 @@
 import logging
 import mimetypes
+from concurrent.futures import ThreadPoolExecutor
 
 from app.agents.document_intelligence.parser import DocumentParseError, parse_ocr_output
 from app.agents.document_intelligence.sarvam_client import SarvamVisionClient, SarvamVisionError
@@ -10,6 +11,7 @@ from app.services.storage_service import StorageFetchError, get_file_bytes
 logger = logging.getLogger(__name__)
 
 SUPPORTED_MIME_TYPES = {"application/pdf", "image/jpeg", "image/png"}
+MAX_CONCURRENT_OCR_JOBS = 4
 
 
 def _guess_mime_type(filename: str) -> str:
@@ -57,12 +59,23 @@ def _extract_one(client: SarvamVisionClient, document: dict) -> DocumentOcrResul
         )
 
     try:
-        files = client.extract_document(file_bytes, filename, mime_type)
-        return parse_ocr_output(files, document)
+        files, job_id, partial = client.extract_document(file_bytes, filename, mime_type)
+        return parse_ocr_output(files, document, job_id=job_id, partial=partial)
     except (SarvamVisionError, DocumentParseError) as exc:
         logger.exception("Sarvam OCR failed for document_id=%s", document_id)
         return DocumentOcrResult(
             document_id=document_id, document_type=document_type, status="failed", error=str(exc)
+        )
+    except Exception as exc:
+        # Isolate failures per document — one bad file/response must not abort
+        # the whole batch (that would force a full node-level retry that
+        # re-OCRs every other document too).
+        logger.exception("Unexpected error extracting document_id=%s", document_id)
+        return DocumentOcrResult(
+            document_id=document_id,
+            document_type=document_type,
+            status="failed",
+            error=f"Unexpected error during OCR: {exc}",
         )
 
 
@@ -82,4 +95,9 @@ def run(documents: list[dict]) -> list[DocumentOcrResult]:
         ]
 
     with SarvamVisionClient() as client:
-        return [_extract_one(client, document) for document in documents]
+        # httpx.Client is safe for concurrent requests across threads, so
+        # documents are OCR'd in parallel instead of one full
+        # create->upload->poll->download cycle at a time — this is the
+        # dominant latency cost for multi-document loan applications.
+        with ThreadPoolExecutor(max_workers=min(MAX_CONCURRENT_OCR_JOBS, len(documents))) as executor:
+            return list(executor.map(lambda document: _extract_one(client, document), documents))

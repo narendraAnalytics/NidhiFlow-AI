@@ -55,12 +55,6 @@ const DOCUMENT_CHECKLIST_BY_LOAN_TYPE: Record<
   ],
 };
 
-const REQUIRED_DOCUMENT_TYPES_BY_LOAN_TYPE: Record<LoanType, DocumentType[]> = {
-  Home: ["PAN Card", "Aadhaar", "Sale Deed"],
-  Personal: ["PAN Card", "Aadhaar", "Salary Slip"],
-  Business: ["PAN Card", "Aadhaar", "GST Certificate"],
-};
-
 export function DocumentUploadSection({
   loanId,
   loanType,
@@ -74,16 +68,12 @@ export function DocumentUploadSection({
 }) {
   const { user } = useAuth();
   const checklist = DOCUMENT_CHECKLIST_BY_LOAN_TYPE[loanType];
-  const requiredTypes = REQUIRED_DOCUMENT_TYPES_BY_LOAN_TYPE[loanType];
   const [documentType, setDocumentType] = useState<DocumentType>(checklist[0].type);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitOutcome, setSubmitOutcome] = useState<SubmitOutcome>(null);
   const [documents, setDocuments] = useState<LoanDocumentResponse[]>(initialDocuments);
-
-  const uploadedTypes = new Set(documents.map((d) => d.document_type));
-  const requiredUploadedCount = requiredTypes.filter((t) => uploadedTypes.has(t)).length;
 
   const categories = Array.from(new Set(checklist.map((c) => c.category)));
 
@@ -146,7 +136,7 @@ export function DocumentUploadSection({
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[14px] font-bold text-[#0f1b33]">Upload documents</h2>
           <span className="text-[12.5px] font-semibold text-[#5b6b8c]">
-            {requiredUploadedCount} of {requiredTypes.length} required documents uploaded
+            {documents.length} file{documents.length === 1 ? "" : "s"} uploaded
           </span>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">

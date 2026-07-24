@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 from app.agents.document_intelligence.agent import run as run_document_intelligence
+from app.agents.intake_supervisor.agent import run as run_intake_supervisor
 from app.agents.pipeline_orchestrator.agent import run as run_pipeline_orchestrator
 from app.agents.state import LoanWorkflowState
 from app.agents.validation_compliance.agent import run as run_validation_compliance
@@ -10,8 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 def intake_supervisor_node(state: LoanWorkflowState) -> dict:
-    """Deterministic bookkeeping node: flags applications with no documents
-    for human review. No DB access, no LLM — reads only from state.
+    """Deterministic intake triage: checks document-checklist completeness
+    and loan-type-specific form-field completeness (both already available
+    on state, before any OCR/LLM cost is spent downstream). No DB access,
+    no LLM — reads only from state.
     """
     logger.info(
         "intake_supervisor: loan_application_id=%s documents=%d",
@@ -19,11 +22,20 @@ def intake_supervisor_node(state: LoanWorkflowState) -> dict:
         len(state["documents"]),
     )
     try:
+        summary = run_intake_supervisor(
+            state["documents"],
+            state.get("customer_profile", {}),
+            state.get("loan_details", {}),
+        )
+
         errors = list(state.get("errors", []))
-        human_review_required = state.get("human_review_required", False)
-        if not state["documents"]:
-            human_review_required = True
-            errors.append("No documents attached at submission")
+        if summary.missing_documents:
+            errors.append(f"Missing required documents: {', '.join(summary.missing_documents)}")
+        if summary.missing_form_fields:
+            errors.append(f"Missing required form fields: {', '.join(summary.missing_form_fields)}")
+        errors.extend(summary.warnings)
+
+        human_review_required = state.get("human_review_required", False) or summary.status == "failed"
 
         return {
             "current_stage": "intake_supervisor",
@@ -33,7 +45,8 @@ def intake_supervisor_node(state: LoanWorkflowState) -> dict:
                 **state.get("agent_outputs", {}),
                 "intake_supervisor": {
                     "document_count": len(state["documents"]),
-                    "status": "completed",
+                    "status": summary.status,
+                    "summary": summary.model_dump(mode="json"),
                 },
             },
         }
@@ -79,8 +92,16 @@ def document_intelligence_node(state: LoanWorkflowState) -> dict:
         else:
             overall_status = "partial"
 
+        errors = list(state.get("errors", []))
+        for result in results:
+            if result.quality_warning:
+                errors.append(
+                    f"{result.document_type or result.document_id}: {result.quality_warning}"
+                )
+
         return {
             "current_stage": "document_intelligence",
+            "errors": errors,
             "agent_outputs": {
                 **state.get("agent_outputs", {}),
                 "document_intelligence": {
