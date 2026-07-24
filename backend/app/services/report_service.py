@@ -27,8 +27,65 @@ HEADING_COLOR = colors.HexColor("#0f1b33")
 GRID_COLOR = colors.HexColor("#e2e8f5")
 ROW_TINT = colors.HexColor("#f8fbff")
 PASS_COLOR = "#15803d"
-FAIL_COLOR = "#be185d"
 NA_COLOR = "#9aa8c2"
+REVIEW_COLOR = "#b45309"
+
+# Display-friendly wording for internal processing statuses — the underlying
+# processing_status/type_match_status values in the DB are left untouched;
+# only how they're rendered in the human-facing PDF changes here.
+PROCESSING_STATUS_LABELS = {
+    "parsed": "Verified",
+    "partial": "Partially Verified",
+    "failed": "Needs Manual Review",
+    "skipped": "Not Processed",
+    "pending": "Pending",
+}
+TYPE_CHECK_LABELS = {
+    "match": "Match",
+    "mismatch": "Needs Review",
+    "uncertain": "Uncertain",
+}
+
+
+def _processing_status_label(raw_status: str) -> str:
+    return PROCESSING_STATUS_LABELS.get(raw_status, raw_status.title())
+
+
+def _type_check_label(raw_status: str) -> str:
+    if raw_status == "—":
+        return raw_status
+    return TYPE_CHECK_LABELS.get(raw_status, raw_status.title())
+
+
+def _friendly_decision_message(message: str) -> str:
+    """Softens the raw `decision=X reason=Y` audit-event string for the PDF.
+    Only affects report display text — WorkflowEvent.message itself, and every
+    other consumer of it (audit trail, monitoring, reporting API), is untouched.
+    """
+    if "reason=" not in message:
+        return message
+    reason = message.split("reason=", 1)[1]
+    # Whole-reason replacements (no document names or other specifics carried
+    # through to the PDF) take priority over prefix replacements below.
+    whole_replacements = [
+        ("Required documents missing:", "A few more supporting documents are needed before this can be processed automatically."),
+    ]
+    for needle, friendly in whole_replacements:
+        if reason.startswith(needle):
+            return friendly
+
+    prefix_replacements = [
+        ("Some documents failed OCR parsing and retry budget exhausted", "Some documents could not be automatically read and require manual review"),
+        ("Some documents failed OCR parsing; retry budget available", "Some documents could not be automatically read; the system will retry"),
+        ("OCR failed for all documents; workflow cannot continue without extracted text", "None of the uploaded documents could be automatically read — manual review needed"),
+        ("Validation failed cross-checks", "Some details could not be cross-verified"),
+        ("Flagged for human review by an earlier workflow stage", "Flagged for a closer look by an earlier stage"),
+    ]
+    for needle, friendly in prefix_replacements:
+        if reason.startswith(needle):
+            reason = friendly + reason[len(needle):]
+            break
+    return reason
 
 LOAN_DETAIL_FIELDS: list[tuple[str, str]] = [
     ("loan_purpose", "Purpose"),
@@ -231,6 +288,88 @@ def _build_verification_checklist(
     return checklist, recommendations
 
 
+def _build_ai_operations_summary(
+    customer: Customer | None,
+    loan: LoanApplication,
+    checklist: list[tuple[str, str, str]],
+    summary: LoanValidationSummary | None,
+) -> dict:
+    """Builds a short, friendly narrative summary of the automated checks —
+    presentation only, derived entirely from data already computed by
+    `_build_verification_checklist` and the persisted `LoanValidationSummary`.
+    No new LLM call and no new data source; this never overrides the actual
+    routing decision, only how it's explained back to the applicant.
+    """
+    greeting = f"Dear {customer.full_name}," if customer and customer.full_name else "Dear Applicant,"
+    intro = (
+        f"We have completed scanning and reviewing the documents you submitted for your "
+        f"{loan.loan_type.value} Loan application."
+    )
+
+    status_by_label = {label: status for label, status, _ in checklist}
+
+    nice_points: list[str] = []
+    credit_score = loan.credit_score
+    if credit_score is not None:
+        if credit_score >= 750:
+            nice_points.append(f"Your credit score of {credit_score} is excellent.")
+        elif credit_score >= 700:
+            nice_points.append(f"Your credit score of {credit_score} is good.")
+
+    for label, status in status_by_label.items():
+        if label.startswith("Estimated EMI Within Income") and status == "Yes":
+            nice_points.append("Your estimated monthly EMI comfortably fits within your income.")
+            break
+
+    if status_by_label.get("Income Verified From Documents") == "Yes":
+        nice_points.append("Your income was independently confirmed from your uploaded documents.")
+
+    identity_labels = [
+        "PAN Name Matches Aadhaar Name",
+        "PAN Date of Birth Matches Aadhaar",
+        "PAN Number Matches Application Record",
+        "Aadhaar Number Matches Application Record",
+        "Applicant Name Matches Uploaded Documents",
+    ]
+    identity_results = [status_by_label[label] for label in identity_labels if label in status_by_label]
+    if identity_results and all(result == "Yes" for result in identity_results):
+        nice_points.append("Your identity documents were verified successfully and all details matched.")
+
+    doc_type_results = [status for label, status in status_by_label.items() if label.startswith("Document Type Verified")]
+    if doc_type_results and all(result == "Yes" for result in doc_type_results):
+        nice_points.append("All your uploaded documents were correctly verified against their declared type.")
+
+    if not nice_points:
+        nice_points.append("Your documents have been received and are being processed.")
+
+    if loan.status.value == "Human Review":
+        routing_message = (
+            "Your application will now be sent to our Branch Manager for a final human review, "
+            "as required by our lending policy."
+        )
+    elif loan.status.value in ("Processing", "Approved", "Completed"):
+        routing_message = "Your application passed automated checks and is proceeding in the pipeline."
+    elif loan.status.value == "Rejected":
+        routing_message = "This application was not approved."
+    else:
+        routing_message = "This application has not yet been submitted for processing."
+
+    yes_count = sum(1 for status in status_by_label.values() if status == "Yes")
+    no_count = sum(1 for status in status_by_label.values() if status == "No")
+    base_ratio = (yes_count / (yes_count + no_count)) if (yes_count + no_count) else 0.5
+    missing_count = len(summary.missing_documents) if summary and summary.missing_documents else 0
+    likelihood = max(0.05, min(0.95, base_ratio - 0.15 * missing_count))
+    likelihood_pct = round(likelihood * 100)
+
+    return {
+        "greeting": greeting,
+        "intro": intro,
+        "nice_points": nice_points,
+        "routing_message": routing_message,
+        "likelihood_pct": likelihood_pct,
+    }
+
+
 def build_loan_report_pdf(db: Session, loan_id: uuid.UUID) -> bytes:
     loan = db.query(LoanApplication).filter(LoanApplication.id == loan_id).first()
     if loan is None:
@@ -341,14 +480,14 @@ def build_loan_report_pdf(db: Session, loan_id: uuid.UUID) -> bytes:
     # --- Documents Submitted & Examined ---
     story.append(Paragraph("Documents Submitted & Examined", section_style))
     if documents:
-        doc_rows = [_wrap_row(["Document Type", "File Name", "OCR Status", "Type Check"], TABLE_HEADER_STYLE)]
+        doc_rows = [_wrap_row(["Document Type", "File Name", "Processing Status", "Type Check"], TABLE_HEADER_STYLE)]
         for document in documents:
             validation = validation_by_document.get(document.id)
-            ocr_status = (validation.processing_status if validation else "pending").title()
-            type_check = (validation.type_match_status if validation and validation.type_match_status else "—").title()
+            processing_status = _processing_status_label(validation.processing_status if validation else "pending")
+            type_check = _type_check_label(validation.type_match_status if validation and validation.type_match_status else "—")
             doc_rows.append(
                 _wrap_row(
-                    [document.document_type.value, document.document_name, ocr_status, type_check],
+                    [document.document_type.value, document.document_name, processing_status, type_check],
                     TABLE_CELL_STYLE,
                 )
             )
@@ -379,25 +518,12 @@ def build_loan_report_pdf(db: Session, loan_id: uuid.UUID) -> bytes:
             )
         )
     checklist, recommendations = _build_verification_checklist(customer, loan, documents, validation_by_document)
-    if summary and summary.missing_documents:
-        checklist.insert(
-            0,
-            (
-                "Required Documents Complete",
-                "No",
-                f"Missing: {', '.join(summary.missing_documents)}",
-            ),
-        )
-        recommendations.insert(
-            0,
-            f"The following required documents are missing and must be uploaded: {', '.join(summary.missing_documents)}.",
-        )
-    elif summary:
+    if summary and not summary.missing_documents:
         checklist.insert(0, ("Required Documents Complete", "Yes", ""))
     if checklist:
         checklist_rows = [_wrap_row(["Check", "Result", "Detail"], TABLE_HEADER_STYLE)]
         for label, status, detail in checklist:
-            color = {"Yes": PASS_COLOR, "No": FAIL_COLOR}.get(status, NA_COLOR)
+            color = {"Yes": PASS_COLOR, "No": REVIEW_COLOR, "Review": REVIEW_COLOR}.get(status, NA_COLOR)
             checklist_rows.append(
                 [
                     Paragraph(label, TABLE_CELL_STYLE),
@@ -427,17 +553,27 @@ def build_loan_report_pdf(db: Session, loan_id: uuid.UUID) -> bytes:
         for recommendation in recommendations:
             story.append(Paragraph(f"&bull; {recommendation}", bullet_style))
 
+    # --- AI Operations Summary ---
+    story.append(Paragraph("AI Operations Summary", section_style))
+    ai_summary = _build_ai_operations_summary(customer, loan, checklist, summary)
+    story.append(Paragraph(ai_summary["greeting"], body_style))
+    story.append(Paragraph(ai_summary["intro"], body_style))
+    for point in ai_summary["nice_points"]:
+        story.append(Paragraph(f"&bull; {point}", bullet_style))
+    story.append(Spacer(1, 2 * mm))
+    story.append(Paragraph(ai_summary["routing_message"], body_style))
+    story.append(
+        Paragraph(
+            f"Indicative application strength: <b>{ai_summary['likelihood_pct']}%</b> — this is an automated "
+            "estimate based on document and eligibility checks only. It is not a loan sanction, offer, or "
+            "guarantee of approval; the final decision rests solely with the Branch Manager / human underwriter.",
+            muted_style,
+        )
+    )
+
     # --- Final Result ---
     story.append(Paragraph("Final Result", section_style))
-    if loan.status.value == "Human Review":
-        verdict = "This application has been routed to a human underwriter for manual review."
-    elif loan.status.value in ("Processing", "Approved", "Completed"):
-        verdict = "This application passed automated checks and is proceeding in the pipeline."
-    elif loan.status.value == "Rejected":
-        verdict = "This application was not approved."
-    else:
-        verdict = "This application has not yet been submitted for processing."
-    story.append(Paragraph(f"<b>{loan.status.value}</b> — {verdict}", body_style))
+    story.append(Paragraph(f"<b>{loan.status.value}</b> — {ai_summary['routing_message']}", body_style))
 
     latest_execution = (
         db.query(WorkflowExecution)
@@ -457,7 +593,7 @@ def build_loan_report_pdf(db: Session, loan_id: uuid.UUID) -> bytes:
             .first()
         )
     if decision_event and decision_event.message:
-        story.append(Paragraph(decision_event.message, muted_style))
+        story.append(Paragraph(_friendly_decision_message(decision_event.message), muted_style))
 
     story.append(Spacer(1, 8 * mm))
     story.append(

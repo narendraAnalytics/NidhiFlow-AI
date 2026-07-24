@@ -1,5 +1,4 @@
 import logging
-import random
 import time
 
 import httpx
@@ -12,70 +11,21 @@ from app.core.config import (
     SARVAM_VISION_LANGUAGE,
     SARVAM_VISION_OUTPUT_FORMAT,
 )
+from app.utils.http_retry import request_with_retry
 
 logger = logging.getLogger(__name__)
 
 JOB_BASE_PATH = "/doc-digitization/job/v1"
 
 MAX_ATTEMPTS = 3
-BASE_BACKOFF_SECONDS = 1.0
-MAX_BACKOFF_SECONDS = 20.0
-RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 class SarvamVisionError(Exception):
     pass
 
 
-def _sleep_before_retry(attempt: int, response: httpx.Response | None) -> None:
-    if response is not None:
-        retry_after = response.headers.get("Retry-After")
-        if retry_after:
-            try:
-                time.sleep(float(retry_after))
-                return
-            except ValueError:
-                pass
-    delay = min(BASE_BACKOFF_SECONDS * (2**attempt), MAX_BACKOFF_SECONDS)
-    time.sleep(delay + random.uniform(0, delay * 0.25))
-
-
 def _request_with_retry(request_fn, context: str) -> httpx.Response:
-    """Runs an HTTP call with exponential-backoff retry for transient failures
-    (timeouts, connection errors, HTTP 429/5xx). Non-retryable 4xx responses
-    are returned immediately so the caller's `_raise_for_status` can surface
-    them without a wasted retry.
-    """
-    last_exc: Exception | None = None
-    for attempt in range(MAX_ATTEMPTS):
-        try:
-            response = request_fn()
-        except (httpx.TimeoutException, httpx.TransportError) as exc:
-            last_exc = exc
-            if attempt == MAX_ATTEMPTS - 1:
-                raise SarvamVisionError(
-                    f"Sarvam {context} failed after {MAX_ATTEMPTS} attempts: {exc}"
-                ) from exc
-            logger.warning(
-                "Sarvam %s network error (attempt %d/%d): %s", context, attempt + 1, MAX_ATTEMPTS, exc
-            )
-            _sleep_before_retry(attempt, None)
-            continue
-
-        if response.status_code in RETRYABLE_STATUS_CODES and attempt < MAX_ATTEMPTS - 1:
-            logger.warning(
-                "Sarvam %s returned status %d (attempt %d/%d), retrying",
-                context,
-                response.status_code,
-                attempt + 1,
-                MAX_ATTEMPTS,
-            )
-            _sleep_before_retry(attempt, response)
-            continue
-
-        return response
-
-    raise SarvamVisionError(f"Sarvam {context} failed after {MAX_ATTEMPTS} attempts: {last_exc}")
+    return request_with_retry(request_fn, f"Sarvam {context}", SarvamVisionError, max_attempts=MAX_ATTEMPTS)
 
 
 def _raise_for_status(response: httpx.Response, context: str) -> None:

@@ -1,14 +1,14 @@
 import logging
 from decimal import Decimal
 
-from app.agents.validation_compliance.gemini_client import GeminiClient, GeminiValidationError
+from app.agents.validation_compliance.sarvam_chat_client import SarvamChatClient, SarvamValidationError
 from app.agents.validation_compliance.schemas import (
     DocumentValidationResult,
     ExtractedDocumentFields,
     LoanValidationSummary,
     TypeMatchStatus,
 )
-from app.core.config import GEMINI_API_KEY, GEMINI_USE_VERTEX
+from app.core.config import SARVAM_API_KEY
 from app.core.document_checklist import compute_missing_required_documents
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ def _check_type_match(document_type: str | None, detected_document_type: str | N
 
 
 def _document_validation_step(
-    client: GeminiClient, document: dict, ocr_result: dict | None
+    client: SarvamChatClient, document: dict, ocr_result: dict | None
 ) -> DocumentValidationResult:
     """Document Validator + Entity Extractor stage (combined, one LLM call):
     extracts structured fields from the OCR'd document AND checks whether
@@ -68,8 +68,8 @@ def _document_validation_step(
             detected_document_type=fields.detected_document_type,
             type_match_status=_check_type_match(document_type, fields.detected_document_type),
         )
-    except GeminiValidationError as exc:
-        logger.exception("Gemini extraction failed for document_id=%s", document_id)
+    except SarvamValidationError as exc:
+        logger.exception("Sarvam extraction failed for document_id=%s", document_id)
         return DocumentValidationResult(
             document_id=document_id, document_type=document_type, status="failed", error=str(exc)
         )
@@ -234,24 +234,24 @@ def run(
 ) -> tuple[list[DocumentValidationResult], LoanValidationSummary]:
     ocr_by_document_id = {r.get("document_id"): r for r in ocr_results}
 
-    if not GEMINI_API_KEY and not GEMINI_USE_VERTEX:
+    if not SARVAM_API_KEY:
         results = [
             DocumentValidationResult(
                 document_id=doc.get("id"),
                 document_type=doc.get("document_type"),
                 status="skipped",
-                error="GEMINI_API_KEY not configured",
+                error="SARVAM_API_KEY not configured",
             )
             for doc in documents
         ]
     elif not documents:
         results = []
     else:
-        client = GeminiClient()
-        results = [
-            _document_validation_step(client, document, ocr_by_document_id.get(document.get("id")))
-            for document in documents
-        ]
+        with SarvamChatClient() as client:
+            results = [
+                _document_validation_step(client, document, ocr_by_document_id.get(document.get("id")))
+                for document in documents
+            ]
 
     summary = _cross_document_validation_step(results, documents, customer_profile, loan_details)
     return results, summary
