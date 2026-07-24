@@ -40,6 +40,14 @@ class SarvamChatClient:
                     # mismatch signal) even when the model clearly reasoned about it in
                     # `notes` — json_object mode gets the same fields filled correctly.
                     "response_format": {"type": "json_object"},
+                    # Sarvam's default max_tokens (2048) plus "thinking mode" being on by
+                    # default means reasoning_content silently eats into that same budget
+                    # before the model writes the JSON body — on longer documents (Sale
+                    # Agreement, Bank Statement) this truncated the JSON mid-string. This
+                    # is a deterministic field-extraction call, not a reasoning task, so
+                    # disable thinking entirely and raise the cap for headroom.
+                    "reasoning_effort": None,
+                    "max_tokens": 4096,
                 },
             ),
             "chat completion",

@@ -2,6 +2,12 @@ import { getStatusChipStyle } from "@/lib/status-styles";
 import { formatCurrency } from "@/lib/format";
 import type { CustomerSummary, LoanSummary, ValidationSummary } from "@/types/reporting";
 
+const FRIENDLY_VALIDATION_LABEL: Record<string, string> = {
+  passed: "Validation passed",
+  warning: "Validation completed with notes",
+  failed: "Some items need a closer look",
+};
+
 export function LoanSummaryCard({
   loan,
   customer,
@@ -43,7 +49,8 @@ export function LoanSummaryCard({
         <div className="mt-5 border-t border-[#0f1b33]/10 pt-5">
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[13px] font-semibold text-[#5b6b8c]">
-              Validation — {validationSummary.validation_status}
+              {FRIENDLY_VALIDATION_LABEL[validationSummary.validation_status] ??
+                `Validation — ${validationSummary.validation_status}`}
             </span>
             <span className="text-[13px] font-bold text-[#0f1b33]">
               {(validationSummary.confidence * 100).toFixed(0)}% confidence

@@ -1,6 +1,7 @@
+import re
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 DocumentValidationStatus = Literal["parsed", "failed", "skipped"]
 
@@ -49,6 +50,20 @@ class ExtractedDocumentFields(BaseModel):
             "this extraction (e.g. 'DOB partially obscured', 'name field appears truncated')."
         ),
     )
+
+    @field_validator("monthly_income", mode="before")
+    @classmethod
+    def _coerce_currency_string(cls, value: object) -> object:
+        """The extraction prompt tells the model to preserve numbers exactly as
+        printed (e.g. "Rs. 1,02,334"), which directly conflicts with this field's
+        float type — strip currency symbols/commas/whitespace before Pydantic's
+        own float coercion runs, rather than letting one formatted string blow up
+        the entire document's extraction.
+        """
+        if not isinstance(value, str):
+            return value
+        cleaned = re.sub(r"[^\d.]", "", value)
+        return cleaned or None
 
 
 TypeMatchStatus = Literal["match", "mismatch", "uncertain"]
