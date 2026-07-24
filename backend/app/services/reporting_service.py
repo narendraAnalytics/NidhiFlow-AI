@@ -26,6 +26,7 @@ from app.schemas.reporting import (
     StageDuration,
     ValidationSummary,
 )
+from app.utils.friendly_messages import friendly_workflow_event_description
 
 
 class LoanNotFoundError(Exception):
@@ -91,7 +92,7 @@ def get_loan_timeline(db: Session, loan_id: uuid.UUID) -> LoanTimelineResponse:
                 timestamp=e.created_at,
                 category="workflow_event",
                 title=e.event_type,
-                description=e.message,
+                description=friendly_workflow_event_description(e.event_type, e.message),
                 metadata={"stage": e.stage},
             )
         )

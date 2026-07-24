@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 
 from decimal import Decimal
 
-from app.agents.validation_compliance.agent import INCOME_BEARING_DOCUMENT_TYPES, _compute_emi, _normalize
+from app.agents.validation_compliance.agent import (
+    INCOME_BEARING_DOCUMENT_TYPES,
+    _compute_emi,
+    _normalize,
+    _normalize_id,
+)
 from app.models.customer import Customer
 from app.models.document_validation_result import DocumentValidationResult
 from app.models.loan_application import LoanApplication
@@ -20,6 +25,7 @@ from app.models.loan_validation_summary import LoanValidationSummary
 from app.models.workflow_event import WorkflowEvent
 from app.models.workflow_execution import WorkflowExecution
 from app.services.reporting_service import LoanNotFoundError
+from app.utils.friendly_messages import friendly_decision_message
 
 BRAND_COLOR = colors.HexColor("#3B82F6")
 MUTED_COLOR = colors.HexColor("#5b6b8c")
@@ -56,36 +62,6 @@ def _type_check_label(raw_status: str) -> str:
         return raw_status
     return TYPE_CHECK_LABELS.get(raw_status, raw_status.title())
 
-
-def _friendly_decision_message(message: str) -> str:
-    """Softens the raw `decision=X reason=Y` audit-event string for the PDF.
-    Only affects report display text — WorkflowEvent.message itself, and every
-    other consumer of it (audit trail, monitoring, reporting API), is untouched.
-    """
-    if "reason=" not in message:
-        return message
-    reason = message.split("reason=", 1)[1]
-    # Whole-reason replacements (no document names or other specifics carried
-    # through to the PDF) take priority over prefix replacements below.
-    whole_replacements = [
-        ("Required documents missing:", "A few more supporting documents are needed before this can be processed automatically."),
-    ]
-    for needle, friendly in whole_replacements:
-        if reason.startswith(needle):
-            return friendly
-
-    prefix_replacements = [
-        ("Some documents failed OCR parsing and retry budget exhausted", "Some documents could not be automatically read and require manual review"),
-        ("Some documents failed OCR parsing; retry budget available", "Some documents could not be automatically read; the system will retry"),
-        ("OCR failed for all documents; workflow cannot continue without extracted text", "None of the uploaded documents could be automatically read — manual review needed"),
-        ("Validation failed cross-checks", "Some details could not be cross-verified"),
-        ("Flagged for human review by an earlier workflow stage", "Flagged for a closer look by an earlier stage"),
-    ]
-    for needle, friendly in prefix_replacements:
-        if reason.startswith(needle):
-            reason = friendly + reason[len(needle):]
-            break
-    return reason
 
 LOAN_DETAIL_FIELDS: list[tuple[str, str]] = [
     ("loan_purpose", "Purpose"),
@@ -216,13 +192,13 @@ def _build_verification_checklist(
                 recommendations.append("The date of birth on the PAN card and Aadhaar card do not match — please verify with the applicant.")
 
     if customer and pan_fields and pan_fields.get("id_number"):
-        match = _normalize(pan_fields["id_number"]) == _normalize(customer.pan)
+        match = _normalize_id(pan_fields["id_number"]) == _normalize_id(customer.pan)
         checklist.append(("PAN Number Matches Application Record", "Yes" if match else "No", ""))
         if not match:
             recommendations.append("The PAN number extracted from the uploaded document does not match the applicant's record.")
 
     if customer and aadhaar_fields and aadhaar_fields.get("id_number"):
-        match = _normalize(aadhaar_fields["id_number"]) == _normalize(customer.aadhaar)
+        match = _normalize_id(aadhaar_fields["id_number"]) == _normalize_id(customer.aadhaar)
         checklist.append(("Aadhaar Number Matches Application Record", "Yes" if match else "No", ""))
         if not match:
             recommendations.append("The Aadhaar number extracted from the uploaded document does not match the applicant's record.")
@@ -593,7 +569,7 @@ def build_loan_report_pdf(db: Session, loan_id: uuid.UUID) -> bytes:
             .first()
         )
     if decision_event and decision_event.message:
-        story.append(Paragraph(_friendly_decision_message(decision_event.message), muted_style))
+        story.append(Paragraph(friendly_decision_message(decision_event.message), muted_style))
 
     story.append(Spacer(1, 8 * mm))
     story.append(

@@ -76,8 +76,21 @@ Step 5 uses **Sarvam-105B** (`sarvam_chat_client.py`, OpenAI-compatible `POST {S
 
 ## Sarvam Doc Digitization API has no prompt parameter
 
-`document_intelligence`'s Sarvam job API (`app/agents/document_intelligence/sarvam_client.py`) only accepts `language`/`output_format` in `job_parameters` — confirmed against Sarvam's own docs, there is no prompt/instruction field on this endpoint. Sarvam's separate "Extract" product does take a prompt, but don't add it here — it would duplicate `validation_compliance`'s Gemma-based extraction. Sarvam also supports ZIP multi-file batching per job (unused here — each document still gets its own job; concurrency is handled via a `ThreadPoolExecutor` in `agent.py` instead, batching was deliberately deferred).
+`document_intelligence`'s Sarvam job API (`app/agents/document_intelligence/sarvam_client.py`) only accepts `language`/`output_format` in `job_parameters` — confirmed against Sarvam's own docs, there is no prompt/instruction field on this endpoint. Sarvam's separate "Extract" product does take a prompt, but don't add it here — it would duplicate `validation_compliance`'s Sarvam-105B-based extraction. Sarvam also supports ZIP multi-file batching per job (unused here — each document still gets its own job; concurrency is handled via a `ThreadPoolExecutor` in `agent.py` instead, batching was deliberately deferred).
 
 ## Required-field policies (loan intake)
 
 Required *document* types per loan type live in `app/core/document_checklist.py::REQUIRED_DOCUMENT_TYPES` (use the shared `compute_missing_required_documents()` helper, don't reinline). Required *form* fields per loan type (a policy that didn't exist before — nothing previously enforced loan-type-specific fields like `gst_number`/`property_value` anywhere, frontend or backend) live in `app/agents/intake_supervisor/agent.py::REQUIRED_FORM_FIELDS_BY_LOAN_TYPE`.
+
+## `app/utils/` shared helpers
+
+- `http_retry.py::request_with_retry()` — exponential-backoff HTTP retry (429/5xx + timeouts), used by both `document_intelligence/sarvam_client.py` (Vision OCR) and `validation_compliance/sarvam_chat_client.py` (chat completions) so the two Sarvam clients don't duplicate retry logic.
+- `friendly_messages.py::friendly_decision_message()` / `friendly_workflow_event_description()` — turns the raw `event_type`/`message` strings that `pipeline_orchestrator/decision_engine.py::build_audit_trail()` writes to `workflow_events` (e.g. `"validation_compliance status=failed confidence=0.9"`) into human-facing text, without touching the stored row. Lives here specifically so both `report_service.py` (PDF) and `reporting_service.py` (`GET /reporting/loans/{id}/timeline`, which feeds the frontend Loan Timeline panel) can import it — putting it in either service module directly would create a circular import between the two.
+
+## PAN/Aadhaar comparisons need whitespace-stripped normalization, not name-style normalization
+
+`validation_compliance/agent.py::_normalize()` (lowercase + collapse repeated whitespace) is correct for **names** but wrong for **ID numbers** — a real Aadhaar card prints the number spaced (`"1234 5678 9012"`) while the application record stores it digit-only, so `_normalize()` alone left them unequal and produced a false "Aadhaar Number Matches Application Record: No". Fixed by adding `_normalize_id()` (strips whitespace entirely) and using it for the PAN/Aadhaar-vs-customer-record comparisons in both `agent.py` and `report_service.py::_build_verification_checklist` — keep using `_normalize()` for name fields, `_normalize_id()` for any ID/number field.
+
+## PDF report includes a non-decision "AI Operations Summary"
+
+`report_service.py::build_loan_report_pdf()` renders an "AI Operations Summary" section (customer greeting, a few positive highlights derived from the checklist, and an "Indicative application strength" percentage) computed deterministically from the same checklist/summary data as the rest of the report — no extra LLM call. The percentage is explicitly labeled as an automated estimate, not a sanction/offer/guarantee, per this project's compliance rule that AI never makes the lending decision. Don't let this section imply otherwise when extending it.

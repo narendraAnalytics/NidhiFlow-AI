@@ -22,6 +22,17 @@ def _normalize(value: str | None) -> str | None:
     return " ".join(value.strip().lower().split())
 
 
+def _normalize_id(value: str | None) -> str | None:
+    """Like `_normalize` but strips whitespace entirely rather than
+    collapsing it — Aadhaar/PAN numbers are often printed with spaces
+    (e.g. "1234 5678 9012") while the stored application record is
+    digit-only, so any whitespace difference must not count as a mismatch.
+    """
+    if value is None:
+        return None
+    return "".join(value.split()).lower()
+
+
 def _check_type_match(document_type: str | None, detected_document_type: str | None) -> TypeMatchStatus:
     """Compares the declared document_type against the LLM's free-text
     detected_document_type guess. Substring/keyword match rather than
@@ -147,7 +158,7 @@ def _cross_document_validation_step(
     customer_pan = customer_profile.get("pan")
     if pan_fields and pan_fields.id_number and customer_pan:
         checks_performed += 1
-        if _normalize(pan_fields.id_number) != _normalize(customer_pan):
+        if _normalize_id(pan_fields.id_number) != _normalize_id(customer_pan):
             mismatches += 1
             field_mismatches.append(
                 f"Extracted PAN number ('{pan_fields.id_number}') does not match the PAN on file"
@@ -156,7 +167,7 @@ def _cross_document_validation_step(
     customer_aadhaar = customer_profile.get("aadhaar")
     if aadhaar_fields and aadhaar_fields.id_number and customer_aadhaar:
         checks_performed += 1
-        if _normalize(aadhaar_fields.id_number) != _normalize(customer_aadhaar):
+        if _normalize_id(aadhaar_fields.id_number) != _normalize_id(customer_aadhaar):
             mismatches += 1
             field_mismatches.append(
                 f"Extracted Aadhaar number ('{aadhaar_fields.id_number}') does not match the Aadhaar on file"
